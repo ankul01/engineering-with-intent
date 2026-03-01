@@ -3,15 +3,115 @@ title: "System Design Preparation"
 description: "High-level and low-level design problems, patterns, and case studies."
 ---
 
-High-level and low-level design problems, patterns, and case studies.
+# System Design Preparation
 
-## Categories
-- **HLD** — High-Level Design problems and solutions
-- **LLD** — Low-Level Design / object-oriented design
-- **Case Studies** — Real-world system design walkthroughs
-- **Distributed Systems** — Consensus, replication, partitioning
-- **Scalability Patterns** — Sharding, load balancing, horizontal scaling
-- **Caching** — Cache strategies, invalidation, CDN
-- **Databases** — SQL vs NoSQL, indexing, schema design
-- **Messaging Queues** — Kafka, RabbitMQ, event-driven architecture
-- **Tradeoffs** — CAP theorem, consistency vs availability, latency vs throughput
+Master the art of designing scalable, reliable, and maintainable systems. This section covers everything from high-level architecture to low-level implementation details.
+
+## Core Design Problems
+
+<TopicGrid>
+  <TopicCard
+    title="High-Level Design (HLD)"
+    description="End-to-end system architecture, component design, and scalability patterns."
+    href="/leadership-learning/system-design/hld"
+    status="in-progress"
+    topics={['Rate Limiter', 'Last Mile Delivery', 'More coming...']}
+  />
+  <TopicCard
+    title="Low-Level Design (LLD)"
+    description="Object-oriented design, class diagrams, and implementation patterns."
+    href="/leadership-learning/system-design/lld"
+    status="planned"
+    topics={['Parking Lot', 'Elevator', 'Chess']}
+  />
+</TopicGrid>
+
+## Foundational Concepts
+
+<TopicGrid>
+  <TopicCard
+    title="Distributed Systems"
+    description="Consensus algorithms, replication strategies, and partitioning techniques."
+    href="/leadership-learning/system-design/distributed-systems"
+    status="planned"
+    topics={['Raft', 'Paxos', 'CAP Theorem']}
+  />
+  <TopicCard
+    title="Databases"
+    description="SQL vs NoSQL, indexing strategies, schema design, and query optimization."
+    href="/leadership-learning/system-design/databases"
+    status="planned"
+    topics={['PostgreSQL', 'MongoDB', 'Sharding']}
+  />
+  <TopicCard
+    title="Caching"
+    description="Cache strategies, invalidation patterns, CDN, and distributed caching."
+    href="/leadership-learning/system-design/caching"
+    status="planned"
+    topics={['Redis', 'Memcached', 'Cache-Aside']}
+  />
+  <TopicCard
+    title="Messaging Queues"
+    description="Event-driven architecture, message brokers, and stream processing."
+    href="/leadership-learning/system-design/messaging-queues"
+    status="planned"
+    topics={['Kafka', 'RabbitMQ', 'SQS']}
+  />
+</TopicGrid>
+
+## Patterns & Practices
+
+<TopicGrid>
+  <TopicCard
+    title="Scalability Patterns"
+    description="Sharding, load balancing, horizontal scaling, and auto-scaling strategies."
+    href="/leadership-learning/system-design/scalability-patterns"
+    status="planned"
+    topics={['Load Balancing', 'Sharding', 'CQRS']}
+  />
+  <TopicCard
+    title="Tradeoffs"
+    description="CAP theorem, consistency vs availability, latency vs throughput decisions."
+    href="/leadership-learning/system-design/tradeoffs"
+    status="planned"
+    topics={['CAP', 'PACELC', 'Consistency Models']}
+  />
+  <TopicCard
+    title="Case Studies"
+    description="Real-world system design walkthroughs from top tech companies."
+    href="/leadership-learning/system-design/case-studies"
+    status="planned"
+    topics={['Netflix', 'Uber', 'Twitter']}
+  />
+</TopicGrid>
+
+## Interview Approach
+
+### Framework for System Design Interviews
+
+1. **Requirements Clarification** (3-5 min)
+   - Functional requirements: What should the system do?
+   - Non-functional requirements: Scale, latency, availability
+   - Constraints and assumptions
+
+2. **High-Level Design** (10-15 min)
+   - Core components and their interactions
+   - Data flow and API design
+   - Technology choices with justification
+
+3. **Deep Dive** (15-20 min)
+   - Scale one or two critical components
+   - Address bottlenecks and failure modes
+   - Discuss tradeoffs explicitly
+
+4. **Wrap-up** (5 min)
+   - Summarize key decisions
+   - Discuss future improvements
+   - Address operational concerns
+
+### Key Principles
+
+- **Start simple, then scale** – Don't over-engineer from the start
+- **Quantify everything** – Back of envelope calculations matter
+- **Trade-offs over perfection** – There's no perfect solution
+- **Think about failures** – What happens when things go wrong?

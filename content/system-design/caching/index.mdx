@@ -1,3 +1,30 @@
 ---
 title: "Caching"
+description: "Cache strategies, invalidation patterns, and distributed caching."
 ---
+
+# Caching
+
+<ComingSoon 
+  expectedTopics={[
+    'Cache-Aside Pattern',
+    'Write-Through vs Write-Behind',
+    'Cache Invalidation Strategies',
+    'Redis Deep Dive',
+    'CDN Caching',
+    'Distributed Caching'
+  ]} 
+/>
+
+## Caching Patterns Quick Reference
+
+| Pattern | Use Case |
+|---------|----------|
+| **Cache-Aside** | Application manages cache, most flexible |
+| **Read-Through** | Cache loads data on miss |
+| **Write-Through** | Writes go to cache and DB synchronously |
+| **Write-Behind** | Writes to cache, async to DB |
+
+## Cache Invalidation
+
+"There are only two hard things in Computer Science: cache invalidation and naming things." — Phil Karlton

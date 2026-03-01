@@ -3,4 +3,67 @@ title: "Networking Fundamentals"
 description: "Deep dive into DNS, ISP, CDN, and core networking concepts that underpin distributed systems."
 ---
 
-Core networking concepts that every system designer must understand: DNS resolution, ISP routing, CDN architecture, and how they work together.
+# Networking Fundamentals
+
+Core networking concepts that every system designer must understand. These fundamentals form the foundation for designing globally distributed, highly available systems.
+
+## Available Deep Dives
+
+<TopicGrid>
+  <TopicCard
+    title="DNS, ISP & CDN Deep Dive"
+    description="Comprehensive exploration of DNS resolution, ISP routing, CDN architecture, and how they work together."
+    href="/leadership-learning/architecture-deep-dive/networking-fundamentals/dns-isp-cdn-deep-dive"
+    status="complete"
+    topics={['DNS Hierarchy', 'BGP Routing', 'CDN Edge', 'Anycast']}
+  />
+</TopicGrid>
+
+## Planned Topics
+
+<TopicGrid>
+  <TopicCard
+    title="TCP/IP Deep Dive"
+    description="Connection establishment, flow control, congestion algorithms, and performance tuning."
+    href="#"
+    status="planned"
+    topics={['TCP Handshake', 'Congestion Control', 'TCP BBR']}
+  />
+  <TopicCard
+    title="HTTP/2 & HTTP/3"
+    description="Protocol evolution, multiplexing, QUIC, and performance implications."
+    href="#"
+    status="planned"
+    topics={['Multiplexing', 'Server Push', 'QUIC']}
+  />
+  <TopicCard
+    title="TLS & Security"
+    description="Certificate chains, TLS handshake, cipher suites, and HTTPS performance."
+    href="#"
+    status="planned"
+    topics={['Certificate Authority', 'TLS 1.3', 'OCSP']}
+  />
+  <TopicCard
+    title="Load Balancing"
+    description="L4 vs L7 load balancing, algorithms, health checks, and global load balancing."
+    href="#"
+    status="planned"
+    topics={['Round Robin', 'Consistent Hashing', 'Health Checks']}
+  />
+</TopicGrid>
+
+## Why Networking Matters
+
+Understanding networking fundamentals is essential for:
+
+- **System Design** – Make informed decisions about architecture
+- **Debugging** – Diagnose latency, connectivity, and performance issues
+- **Security** – Understand attack vectors and defense mechanisms
+- **Performance** – Optimize for global scale and user experience
+
+### Interview Context
+
+At senior levels, expect questions like:
+- "Walk me through what happens when you type a URL in the browser"
+- "How would you debug a 500ms latency spike for users in Asia?"
+- "Design a system that serves content globally with \<100ms latency"
