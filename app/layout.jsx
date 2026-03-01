@@ -43,7 +43,8 @@ export default async function RootLayout({ children }) {
           footer={footer}
           sidebar={{ defaultMenuCollapseLevel: 1, toggleButton: true }}
           toc={{ backToTop: true }}
-          editLink="Edit this page on GitHub"
+          editLink={null}
+          feedback={{ content: null }}
         >
           {children}
         </Layout>
