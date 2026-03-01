@@ -1,27 +1,534 @@
 ---
 title: "Databases"
-description: "SQL vs NoSQL, indexing, schema design, and database architecture."
+description: "SQL vs NoSQL, indexing strategies, schema design, sharding, replication, and database selection for system design interviews."
 ---
 
 # Databases
 
-<ComingSoon 
-  expectedTopics={[
-    'SQL vs NoSQL Decision Framework',
-    'Indexing Strategies and B-Trees',
-    'Schema Design Best Practices',
-    'Sharding and Partitioning',
-    'Replication Strategies',
-    'Query Optimization'
-  ]} 
-/>
+Choosing the right database and designing efficient schemas are critical decisions in system design. This guide covers everything you need for interviews.
 
-## Key Topics
+## Database Types
 
-| Topic | Description |
-|-------|-------------|
-| SQL vs NoSQL | When to use each, tradeoffs |
-| Indexing | B-trees, hash indexes, composite indexes |
-| Sharding | Horizontal partitioning strategies |
-| Replication | Master-slave, multi-master, quorum |
-| CAP Theorem | Consistency, Availability, Partition tolerance |
+### Relational Databases (SQL)
+
+Store data in tables with predefined schemas, relationships via foreign keys.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                      USERS TABLE                        │
+├────────┬───────────┬─────────────────┬─────────────────┤
+│   id   │   name    │     email       │   created_at    │
+├────────┼───────────┼─────────────────┼─────────────────┤
+│   1    │   Alice   │  alice@ex.com   │   2024-01-01    │
+│   2    │   Bob     │  bob@ex.com     │   2024-01-02    │
+└────────┴───────────┴─────────────────┴─────────────────┘
+         │
+         │ Foreign Key (user_id)
+         ▼
+┌─────────────────────────────────────────────────────────┐
+│                     ORDERS TABLE                        │
+├────────┬───────────┬─────────────┬─────────────────────┤
+│   id   │  user_id  │   amount    │     status          │
+├────────┼───────────┼─────────────┼─────────────────────┤
+│   101  │     1     │   99.99     │     shipped         │
+│   102  │     1     │   49.99     │     delivered       │
+└────────┴───────────┴─────────────┴─────────────────────┘
+```
+
+**Examples:** PostgreSQL, MySQL, Oracle, SQL Server
+
+**Best for:** Complex queries, transactions, data integrity, reporting
+
+### Document Databases (NoSQL)
+
+Store data as flexible JSON-like documents with nested structures.
+
+```json
+{
+  "_id": "user_1",
+  "name": "Alice",
+  "email": "alice@ex.com",
+  "orders": [
+    { "id": 101, "amount": 99.99, "status": "shipped" },
+    { "id": 102, "amount": 49.99, "status": "delivered" }
+  ],
+  "preferences": {
+    "theme": "dark",
+    "notifications": true
+  }
+}
+```
+
+**Examples:** MongoDB, CouchDB, Amazon DocumentDB
+
+**Best for:** Flexible schemas, rapid iteration, hierarchical data
+
+### Key-Value Stores
+
+Simple key-to-value mapping, extremely fast lookups.
+
+```
+┌─────────────────┬────────────────────────────┐
+│       Key       │           Value            │
+├─────────────────┼────────────────────────────┤
+│  session:abc123 │  {"user_id": 1, "exp": ..} │
+│  user:1:profile │  {"name": "Alice", ...}    │
+│  cache:product:5│  {"price": 29.99, ...}     │
+└─────────────────┴────────────────────────────┘
+```
+
+**Examples:** Redis, Memcached, Amazon DynamoDB, etcd
+
+**Best for:** Caching, sessions, real-time data, configuration
+
+### Wide-Column Stores
+
+Data stored in column families, optimized for large-scale analytics.
+
+```
+Row Key: user_1
+┌─────────────────────────────────────────────────────────┐
+│ Column Family: profile    │ Column Family: activity     │
+├───────────────────────────┼─────────────────────────────┤
+│ name: Alice               │ last_login: 2024-01-15      │
+│ email: alice@ex.com       │ page_views: 1542            │
+│ age: 28                   │ purchases: 23               │
+└───────────────────────────┴─────────────────────────────┘
+```
+
+**Examples:** Cassandra, HBase, Google Bigtable
+
+**Best for:** Time-series, IoT data, write-heavy workloads, analytics
+
+### Graph Databases
+
+Nodes and edges for relationship-heavy data.
+
+```
+     ┌─────────┐         FOLLOWS         ┌─────────┐
+     │  Alice  │─────────────────────────│   Bob   │
+     └─────────┘                         └─────────┘
+          │                                   │
+          │ LIKES                             │ LIKES
+          ▼                                   ▼
+     ┌─────────────────────────────────────────────┐
+     │              Post: "Hello World"            │
+     └─────────────────────────────────────────────┘
+```
+
+**Examples:** Neo4j, Amazon Neptune, JanusGraph
+
+**Best for:** Social networks, recommendations, fraud detection, knowledge graphs
+
+## SQL vs NoSQL Decision Framework
+
+### Comparison Table
+
+| Aspect | SQL | NoSQL |
+|--------|-----|-------|
+| **Schema** | Fixed, predefined | Flexible, dynamic |
+| **Scaling** | Vertical (scale up) | Horizontal (scale out) |
+| **ACID** | Strong guarantees | Varies (often eventual) |
+| **Joins** | Native support | Application-level or none |
+| **Query Language** | Standardized SQL | Database-specific |
+| **Best For** | Complex queries, transactions | High throughput, flexibility |
+
+### Decision Tree
+
+```
+Start
+  │
+  ├─► Need ACID transactions across multiple tables?
+  │     ├─ Yes ──► SQL (PostgreSQL, MySQL)
+  │     └─ No  ──► Continue
+  │
+  ├─► Schema changes frequently?
+  │     ├─ Yes ──► Document DB (MongoDB)
+  │     └─ No  ──► Continue
+  │
+  ├─► Simple key-based lookups at massive scale?
+  │     ├─ Yes ──► Key-Value (Redis, DynamoDB)
+  │     └─ No  ──► Continue
+  │
+  ├─► Heavy relationship traversals?
+  │     ├─ Yes ──► Graph DB (Neo4j)
+  │     └─ No  ──► Continue
+  │
+  ├─► Write-heavy time-series or analytics?
+  │     ├─ Yes ──► Wide-Column (Cassandra, HBase)
+  │     └─ No  ──► SQL is usually fine
+  │
+  └─► Default: Start with SQL, migrate when needed
+```
+
+## ACID Properties
+
+### Atomicity
+All operations in a transaction succeed or all fail. No partial updates.
+
+```sql
+BEGIN TRANSACTION;
+  UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+  UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+COMMIT;
+-- Either both happen or neither happens
+```
+
+### Consistency
+Database moves from one valid state to another. Constraints always satisfied.
+
+### Isolation
+Concurrent transactions don't interfere with each other.
+
+### Durability
+Once committed, data survives crashes (written to disk/replicated).
+
+### Isolation Levels
+
+| Level | Dirty Read | Non-Repeatable Read | Phantom Read | Performance |
+|-------|------------|---------------------|--------------|-------------|
+| **Read Uncommitted** | ✓ | ✓ | ✓ | Fastest |
+| **Read Committed** | ✗ | ✓ | ✓ | Fast |
+| **Repeatable Read** | ✗ | ✗ | ✓ | Medium |
+| **Serializable** | ✗ | ✗ | ✗ | Slowest |
+
+**Definitions:**
+- **Dirty Read:** See uncommitted changes from other transactions
+- **Non-Repeatable Read:** Same query returns different results within transaction
+- **Phantom Read:** New rows appear matching a query condition
+
+## Indexing
+
+### Why Indexing Matters
+
+```
+Without Index: Full table scan O(n)
+┌─────────────────────────────────────┐
+│ Scan all 10 million rows            │  ~10 seconds
+└─────────────────────────────────────┘
+
+With Index: B-tree lookup O(log n)
+┌─────────────────────────────────────┐
+│ ~23 node traversals                 │  ~10 milliseconds
+└─────────────────────────────────────┘
+```
+
+### B-Tree Index (Default)
+
+Balanced tree structure, excellent for range queries and equality.
+
+```
+                    ┌─────────────┐
+                    │   [50, 100] │         Root
+                    └──────┬──────┘
+           ┌───────────────┼───────────────┐
+           ▼               ▼               ▼
+     ┌─────────┐     ┌─────────┐     ┌─────────┐
+     │ [10,30] │     │ [60,80] │     │[120,150]│   Internal
+     └────┬────┘     └────┬────┘     └────┬────┘
+          │               │               │
+    ┌─────┴─────┐   ┌─────┴─────┐   ┌─────┴─────┐
+    ▼     ▼     ▼   ▼     ▼     ▼   ▼     ▼     ▼
+  ┌───┐ ┌───┐ ┌───┐ ...                           Leaf
+  │5,8│ │15 │ │25 │     (Actual data pointers)
+  └───┘ └───┘ └───┘
+```
+
+**Good for:** `=`, `<`, `>`, `<=`, `>=`, `BETWEEN`, `ORDER BY`
+
+### Hash Index
+
+Direct hash lookup, O(1) for equality only.
+
+```
+hash("alice@ex.com") = 42
+                        │
+                        ▼
+Bucket 42: ──► Row pointer ──► Actual row data
+```
+
+**Good for:** Exact match lookups only
+**Bad for:** Range queries, sorting
+
+### Composite Index
+
+Index on multiple columns, order matters!
+
+```sql
+CREATE INDEX idx_user_status_date ON orders(user_id, status, created_at);
+
+-- Uses index fully:
+SELECT * FROM orders WHERE user_id = 1 AND status = 'shipped' AND created_at > '2024-01-01';
+
+-- Uses index partially (leftmost prefix):
+SELECT * FROM orders WHERE user_id = 1 AND status = 'shipped';
+SELECT * FROM orders WHERE user_id = 1;
+
+-- Does NOT use index (missing leftmost column):
+SELECT * FROM orders WHERE status = 'shipped';
+```
+
+### Covering Index
+
+Index contains all columns needed, no table lookup required.
+
+```sql
+CREATE INDEX idx_covering ON users(email) INCLUDE (name, created_at);
+
+-- Index-only scan (fast):
+SELECT name, created_at FROM users WHERE email = 'alice@ex.com';
+```
+
+### Indexing Best Practices
+
+| Do | Don't |
+|----|----|
+| Index columns in WHERE clauses | Index every column |
+| Index foreign keys | Index low-cardinality columns (gender, boolean) |
+| Consider composite indexes for common queries | Forget indexes slow down writes |
+| Analyze query plans regularly | Ignore index maintenance overhead |
+
+## Schema Design
+
+### Normalization
+
+Reduce redundancy, organize data into related tables.
+
+**Normal Forms:**
+
+| Form | Rule | Example Violation |
+|------|------|-------------------|
+| **1NF** | Atomic values, no repeating groups | `tags: "java,python,go"` |
+| **2NF** | 1NF + No partial dependencies | Non-key depends on part of composite key |
+| **3NF** | 2NF + No transitive dependencies | `zip_code → city` (city depends on zip, not PK) |
+
+**Before Normalization:**
+```
+┌─────────────────────────────────────────────────────────┐
+│ order_id │ customer_name │ customer_email │ product     │
+├──────────┼───────────────┼────────────────┼─────────────┤
+│    1     │    Alice      │  alice@ex.com  │  Laptop     │
+│    2     │    Alice      │  alice@ex.com  │  Mouse      │  ← Redundant!
+└──────────┴───────────────┴────────────────┴─────────────┘
+```
+
+**After Normalization:**
+```
+Customers:                    Orders:
+┌────┬───────┬──────────────┐ ┌──────────┬─────────────┬─────────┐
+│ id │ name  │    email     │ │ order_id │ customer_id │ product │
+├────┼───────┼──────────────┤ ├──────────┼─────────────┼─────────┤
+│ 1  │ Alice │ alice@ex.com │ │    1     │      1      │ Laptop  │
+└────┴───────┴──────────────┘ │    2     │      1      │ Mouse   │
+                              └──────────┴─────────────┴─────────┘
+```
+
+### Denormalization
+
+Intentionally add redundancy for read performance.
+
+**When to Denormalize:**
+- Read-heavy workloads (100:1 read/write ratio)
+- Complex joins hurting performance
+- Caching derived values
+
+**Example:**
+```sql
+-- Instead of joining every time:
+SELECT u.name, COUNT(o.id) as order_count
+FROM users u JOIN orders o ON u.id = o.user_id
+GROUP BY u.id;
+
+-- Store computed value:
+ALTER TABLE users ADD COLUMN order_count INT DEFAULT 0;
+-- Update on each new order (eventual consistency)
+```
+
+## Sharding (Horizontal Partitioning)
+
+### Sharding Strategies
+
+#### 1. Range-Based Sharding
+
+```
+Shard 1: user_id 1-1,000,000
+Shard 2: user_id 1,000,001-2,000,000
+Shard 3: user_id 2,000,001-3,000,000
+```
+
+**Pros:** Range queries efficient, natural ordering
+**Cons:** Hot spots if data not uniform, rebalancing difficult
+
+#### 2. Hash-Based Sharding
+
+```
+shard_id = hash(user_id) % num_shards
+
+hash(12345) % 4 = 1  →  Shard 1
+hash(67890) % 4 = 3  →  Shard 3
+```
+
+**Pros:** Even distribution
+**Cons:** Range queries hit all shards, adding shards requires rehashing
+
+#### 3. Directory-Based Sharding
+
+```
+┌─────────────┬───────────┐
+│   user_id   │   shard   │
+├─────────────┼───────────┤
+│    1-500    │  shard_1  │
+│   501-800   │  shard_2  │
+│   801-1000  │  shard_1  │  ← Flexible mapping
+└─────────────┴───────────┘
+```
+
+**Pros:** Flexible, easy rebalancing
+**Cons:** Lookup service is single point of failure
+
+### Sharding Challenges
+
+| Challenge | Solution |
+|-----------|----------|
+| **Cross-shard queries** | Scatter-gather, denormalization |
+| **Cross-shard transactions** | Saga pattern, 2PC (avoid if possible) |
+| **Rebalancing** | Consistent hashing, virtual nodes |
+| **Joins** | Denormalize, application-level joins |
+| **Auto-increment IDs** | UUIDs, Snowflake IDs, ID service |
+
+## Replication
+
+### Primary-Replica (Master-Slave)
+
+```
+┌──────────────┐
+│   Primary    │◄──── All Writes
+│   (Master)   │
+└──────┬───────┘
+       │ Async/Sync Replication
+       ▼
+┌──────────────┐  ┌──────────────┐
+│   Replica 1  │  │   Replica 2  │◄──── Reads
+└──────────────┘  └──────────────┘
+```
+
+**Sync vs Async Replication:**
+
+| Type | Durability | Latency | Use Case |
+|------|------------|---------|----------|
+| **Synchronous** | Strong | Higher | Financial systems |
+| **Asynchronous** | Eventual | Lower | Most applications |
+| **Semi-synchronous** | Middle ground | Medium | Balanced needs |
+
+### Read Replicas
+
+Scale reads by adding replicas:
+
+```
+Write ──► Primary ──► Replicate ──► Replica 1
+                              ├──► Replica 2
+                              └──► Replica 3
+                                      ▲
+Read (load balanced) ─────────────────┘
+```
+
+**Replication Lag:** Time for changes to propagate. Can cause stale reads.
+
+## Query Optimization
+
+### Query Execution Plan
+
+```sql
+EXPLAIN ANALYZE SELECT * FROM orders WHERE user_id = 1;
+
+-- Output shows:
+-- Seq Scan (bad) vs Index Scan (good)
+-- Estimated vs actual rows
+-- Cost estimates
+```
+
+### Common Optimizations
+
+| Problem | Solution |
+|---------|----------|
+| Full table scan | Add appropriate index |
+| Too many indexes | Remove unused indexes |
+| SELECT * | Select only needed columns |
+| N+1 queries | Use JOINs or batch loading |
+| Large IN clauses | Use JOINs or temp tables |
+| Missing LIMIT | Add pagination |
+
+### N+1 Query Problem
+
+```python
+# BAD: N+1 queries
+users = db.query("SELECT * FROM users")
+for user in users:
+    orders = db.query(f"SELECT * FROM orders WHERE user_id = {user.id}")
+
+# GOOD: Single query with JOIN
+users_with_orders = db.query("""
+    SELECT u.*, o.*
+    FROM users u
+    LEFT JOIN orders o ON u.id = o.user_id
+""")
+```
+
+## Database Selection by Use Case
+
+| Use Case | Recommended Database | Reason |
+|----------|---------------------|--------|
+| **E-commerce transactions** | PostgreSQL, MySQL | ACID, complex queries |
+| **User sessions** | Redis | Fast, expirable keys |
+| **Product catalog** | MongoDB | Flexible schema |
+| **Social graph** | Neo4j | Relationship traversal |
+| **Time-series metrics** | TimescaleDB, InfluxDB | Optimized for time data |
+| **Full-text search** | Elasticsearch | Inverted index |
+| **Real-time analytics** | ClickHouse, Druid | Column-oriented, fast aggregations |
+| **Global low-latency** | CockroachDB, Spanner | Distributed SQL |
+| **Cache layer** | Redis, Memcached | In-memory, fast |
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"SQL vs NoSQL - when to use each?"**
+   - SQL: Transactions, complex queries, data integrity
+   - NoSQL: Scale, flexibility, specific access patterns
+
+2. **"How would you design a schema for X?"**
+   - Identify entities and relationships
+   - Consider read vs write patterns
+   - Normalize first, denormalize for performance
+
+3. **"How to scale a database?"**
+   - Read scaling: Read replicas
+   - Write scaling: Sharding
+   - Caching layer for hot data
+
+4. **"Explain indexing trade-offs"**
+   - Faster reads, slower writes
+   - More storage space
+   - Maintenance overhead
+
+### Numbers to Know
+
+| Metric | Typical Value |
+|--------|--------------|
+| B-tree index lookup | O(log n), ~10-20 disk reads |
+| Full table scan | O(n) |
+| Memory access | ~100 ns |
+| SSD random read | ~100 μs |
+| HDD random read | ~10 ms |
+| Network round-trip (same DC) | ~0.5 ms |
+| Replication lag (async) | 10-100 ms typical |
+
+### Design Checklist
+
+- [ ] What are the read/write patterns?
+- [ ] What's the data volume and growth rate?
+- [ ] What consistency level is required?
+- [ ] Are there complex relationships/queries?
+- [ ] What's the latency requirement?
+- [ ] Do we need transactions across entities?
+- [ ] How will we scale when needed?
