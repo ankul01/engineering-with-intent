@@ -1,26 +1,475 @@
 ---
 title: "Distributed Systems"
-description: "Consensus, replication, partitioning, and distributed computing fundamentals."
+description: "CAP theorem, consensus algorithms, replication, partitioning, and distributed computing fundamentals for system design interviews."
 ---
 
 # Distributed Systems
 
-<ComingSoon 
-  expectedTopics={[
-    'CAP Theorem and PACELC',
-    'Consensus Algorithms (Raft, Paxos)',
-    'Distributed Transactions',
-    'Leader Election',
-    'Consistent Hashing',
-    'Vector Clocks and Causality'
-  ]} 
-/>
+Distributed systems are the foundation of modern scalable architectures. Understanding these concepts is essential for designing systems that handle failures gracefully while maintaining performance at scale.
 
-## Core Concepts
+## CAP Theorem
 
-| Concept | Description |
-|---------|-------------|
-| **CAP Theorem** | Pick 2: Consistency, Availability, Partition tolerance |
-| **Consensus** | Agreeing on values across nodes |
-| **Replication** | Keeping copies of data in sync |
-| **Partitioning** | Splitting data across nodes |
+The CAP theorem states that a distributed system can only guarantee **two of three** properties simultaneously:
+
+```
+                    ┌─────────────────┐
+                    │   Consistency   │
+                    │  (All nodes see │
+                    │   same data)    │
+                    └────────┬────────┘
+                             │
+              ┌──────────────┼──────────────┐
+              │              │              │
+              ▼              │              ▼
+    ┌─────────────────┐      │    ┌─────────────────┐
+    │  Availability   │◄─────┴───►│   Partition     │
+    │ (Every request  │           │   Tolerance     │
+    │ gets response)  │           │ (Works despite  │
+    └─────────────────┘           │  network splits)│
+                                  └─────────────────┘
+```
+
+### CAP Trade-offs
+
+| Choice | Sacrifices | Use Case | Examples |
+|--------|------------|----------|----------|
+| **CP** | Availability | Financial systems, inventory | MongoDB, HBase, Redis Cluster |
+| **AP** | Consistency | Social feeds, caching | Cassandra, DynamoDB, CouchDB |
+| **CA** | Partition Tolerance | Single-node systems | Traditional RDBMS (theoretical) |
+
+### Important Clarification
+
+- **Partition tolerance is not optional** in distributed systems—network partitions will happen
+- The real choice is between **consistency** and **availability** during a partition
+- Most systems are CP or AP, not purely one or the other
+
+## PACELC Theorem
+
+PACELC extends CAP by addressing behavior when there's **no partition**:
+
+```
+If (Partition) then (Availability vs Consistency)
+Else (Latency vs Consistency)
+```
+
+| System | During Partition | Normal Operation |
+|--------|-----------------|------------------|
+| **DynamoDB** | AP | EL (Eventual, Low latency) |
+| **MongoDB** | CP | EC (Consistent, higher latency) |
+| **Cassandra** | AP | EL (tunable) |
+| **Spanner** | CP | EC (TrueTime) |
+
+## Consistency Models
+
+### Strong Consistency
+Every read returns the most recent write. All nodes see the same data at the same time.
+
+```
+Client A writes X=5  ─────►  All nodes: X=5
+Client B reads X     ─────►  Returns 5 (guaranteed)
+```
+
+**Pros:** Simple to reason about, no stale reads
+**Cons:** Higher latency, reduced availability during partitions
+
+### Eventual Consistency
+Given enough time without updates, all replicas converge to the same value.
+
+```
+Client A writes X=5  ─────►  Node 1: X=5
+                             Node 2: X=3 (stale)
+                             Node 3: X=5
+        ... time passes ...
+                             All nodes: X=5
+```
+
+**Pros:** High availability, low latency
+**Cons:** Stale reads possible, complex conflict resolution
+
+### Causal Consistency
+Operations that are causally related are seen in the same order by all nodes.
+
+```
+User A posts: "Hello"        (happens first)
+User B replies: "Hi there"   (causally dependent)
+
+All nodes must show A's post before B's reply
+But independent posts can appear in any order
+```
+
+### Read Your Writes
+A client always sees their own writes, even if other clients don't yet.
+
+### Monotonic Reads
+Once a client reads a value, subsequent reads won't return older values.
+
+## Consensus Algorithms
+
+Consensus ensures all nodes agree on a single value, even with failures.
+
+### Raft Consensus
+
+Raft is designed for understandability. It breaks consensus into three sub-problems:
+
+#### 1. Leader Election
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     RAFT STATES                         │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│    ┌──────────┐    timeout    ┌─────────────┐          │
+│    │ Follower │──────────────►│  Candidate  │          │
+│    └──────────┘               └─────────────┘          │
+│         ▲                           │                   │
+│         │                           │ wins election     │
+│         │ discovers leader          ▼                   │
+│         │                     ┌──────────┐             │
+│         └─────────────────────│  Leader  │             │
+│                               └──────────┘             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Election Process:**
+1. Follower times out (no heartbeat from leader)
+2. Becomes Candidate, increments term, votes for self
+3. Requests votes from other nodes
+4. Wins with majority votes → becomes Leader
+5. Sends heartbeats to maintain leadership
+
+#### 2. Log Replication
+
+```
+Leader receives write ──► Appends to local log
+                      ──► Sends AppendEntries to followers
+                      ──► Waits for majority acknowledgment
+                      ──► Commits entry
+                      ──► Responds to client
+```
+
+#### 3. Safety Properties
+- **Election Safety:** At most one leader per term
+- **Leader Append-Only:** Leader never overwrites/deletes entries
+- **Log Matching:** If two logs have same index/term, all preceding entries match
+- **State Machine Safety:** If a server applies a log entry, no other server applies a different entry for same index
+
+### Paxos (Simplified)
+
+Paxos is harder to understand but more flexible. Basic roles:
+
+- **Proposers:** Propose values
+- **Acceptors:** Accept/reject proposals  
+- **Learners:** Learn the chosen value
+
+**Two-Phase Protocol:**
+
+```
+Phase 1 (Prepare):
+  Proposer ──► Acceptors: "Prepare(n)"
+  Acceptors ──► Proposer: "Promise(n)" or reject
+
+Phase 2 (Accept):
+  Proposer ──► Acceptors: "Accept(n, value)"
+  Acceptors ──► Proposer: "Accepted" or reject
+
+Value chosen when majority of Acceptors accept
+```
+
+### Raft vs Paxos
+
+| Aspect | Raft | Paxos |
+|--------|------|-------|
+| **Understandability** | Designed for clarity | Notoriously complex |
+| **Leader** | Strong leader required | Flexible, leaderless possible |
+| **Implementation** | Easier to implement correctly | Many variants, easy to get wrong |
+| **Use Cases** | etcd, Consul, CockroachDB | Chubby, Spanner (Multi-Paxos) |
+
+## Replication Strategies
+
+### Single-Leader (Master-Slave)
+
+```
+┌──────────────┐
+│    Leader    │◄──── All Writes
+│   (Primary)  │
+└──────┬───────┘
+       │ Replication
+       ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  Follower 1  │  │  Follower 2  │  │  Follower 3  │
+│  (Replica)   │  │  (Replica)   │  │  (Replica)   │
+└──────────────┘  └──────────────┘  └──────────────┘
+       ▲                 ▲                 ▲
+       └─────────────────┴─────────────────┘
+                    Reads (scale out)
+```
+
+**Pros:** Simple, no write conflicts, easy to reason about
+**Cons:** Single point of failure (mitigated by failover), write bottleneck
+
+### Multi-Leader (Master-Master)
+
+```
+┌──────────────┐         ┌──────────────┐
+│   Leader 1   │◄───────►│   Leader 2   │
+│ (Datacenter  │  sync   │ (Datacenter  │
+│     US)      │         │     EU)      │
+└──────────────┘         └──────────────┘
+       │                        │
+       ▼                        ▼
+   US Clients               EU Clients
+```
+
+**Pros:** Lower latency for geographically distributed users, no single write bottleneck
+**Cons:** Write conflicts possible, complex conflict resolution needed
+
+### Leaderless (Quorum-based)
+
+```
+Write to any node ──► Replicate to W nodes
+Read from any node ──► Read from R nodes
+
+Consistency guaranteed when: W + R > N
+
+Where:
+  N = Total replicas
+  W = Write quorum
+  R = Read quorum
+```
+
+**Example (N=3):**
+- W=2, R=2: Strong consistency (overlap guaranteed)
+- W=1, R=1: Eventual consistency (no overlap)
+- W=3, R=1: Write-heavy optimization
+
+**Conflict Resolution:**
+- Last-Write-Wins (LWW) using timestamps
+- Version vectors
+- CRDTs (Conflict-free Replicated Data Types)
+
+## Partitioning (Sharding)
+
+### Hash Partitioning
+
+```
+hash(key) mod N = partition number
+
+Problems:
+- Adding/removing nodes requires rehashing everything
+- Hot spots if hash function not uniform
+```
+
+### Consistent Hashing
+
+```
+        0°
+         │
+    ┌────┴────┐
+   ╱           ╲
+  │  Node A    │ ──► Keys 0-90°
+  │    ●       │
+  │        ●   │ ──► Node B: Keys 91-180°
+   ╲   Node B ╱
+    └────┬────┘
+         │
+       180°
+         │
+    ┌────┴────┐
+   ╱           ╲
+  │    ●       │ ──► Node C: Keys 181-270°
+  │  Node C    │
+  │        ●   │ ──► Node D: Keys 271-359°
+   ╲   Node D ╱
+    └────┬────┘
+         │
+       360°
+```
+
+**Benefits:**
+- Adding node: Only K/N keys need to move (not all)
+- Virtual nodes: Better load distribution
+- Used by: DynamoDB, Cassandra, Memcached
+
+### Range Partitioning
+
+```
+Partition 1: A-F
+Partition 2: G-L
+Partition 3: M-R
+Partition 4: S-Z
+```
+
+**Pros:** Range queries efficient, natural ordering
+**Cons:** Hot spots if data not uniformly distributed
+
+## Leader Election
+
+### Bully Algorithm
+
+```
+1. Node detects leader failure
+2. Sends ELECTION to all higher-ID nodes
+3. If no response → becomes leader, announces COORDINATOR
+4. If response → waits for new leader announcement
+```
+
+**Pros:** Simple, guarantees highest-ID node wins
+**Cons:** High message overhead, assumes reliable failure detection
+
+### Ring Algorithm
+
+```
+1. Node sends ELECTION message around ring
+2. Each node adds its ID to message
+3. When message returns to originator
+4. Highest ID in message becomes leader
+5. COORDINATOR message sent around ring
+```
+
+## Distributed Transactions
+
+### Two-Phase Commit (2PC)
+
+```
+Phase 1: Prepare
+  Coordinator ──► Participants: "Prepare to commit"
+  Participants ──► Coordinator: "Ready" or "Abort"
+
+Phase 2: Commit/Abort
+  If all Ready:
+    Coordinator ──► Participants: "Commit"
+  Else:
+    Coordinator ──► Participants: "Abort"
+```
+
+**Problems:**
+- Blocking: Participants hold locks until decision
+- Coordinator failure: Participants stuck in uncertain state
+- Not partition tolerant
+
+### Saga Pattern
+
+Break transaction into local transactions with compensating actions:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    ORDER SAGA                           │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  T1: Create Order ──► T2: Reserve Inventory ──►        │
+│                                                         │
+│  T3: Process Payment ──► T4: Ship Order                │
+│                                                         │
+│  If T3 fails:                                          │
+│    C2: Release Inventory ◄── C1: Cancel Order          │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Saga Execution:**
+- **Choreography:** Events trigger next step (decentralized)
+- **Orchestration:** Central coordinator manages steps
+
+## Clocks and Ordering
+
+### Physical Clocks
+Wall-clock time, synchronized via NTP. Problem: clock skew (drift between machines).
+
+### Logical Clocks (Lamport Timestamps)
+
+```
+Rules:
+1. Before event, increment counter
+2. On send: attach counter to message
+3. On receive: counter = max(local, received) + 1
+
+Guarantees: If A happened-before B, then L(A) \< L(B)
+Limitation: L(A) \< L(B) doesn't mean A happened-before B
+```
+
+### Vector Clocks
+
+```
+Node A: [A:1, B:0, C:0]  ──► Event at A
+Node A: [A:2, B:0, C:0]  ──► Another event at A
+Node B: [A:0, B:1, C:0]  ──► Event at B
+
+A sends to B:
+Node B: [A:2, B:2, C:0]  ──► Merge and increment
+
+Concurrent events detectable:
+[A:2, B:0] vs [A:0, B:2] ──► Neither dominates, concurrent
+```
+
+## Failure Handling
+
+### Types of Failures
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Crash** | Node stops and doesn't recover | Process killed |
+| **Crash-Recovery** | Node stops but may recover | Server reboot |
+| **Omission** | Messages lost | Network packet drop |
+| **Byzantine** | Node behaves arbitrarily (malicious) | Compromised server |
+
+### Failure Detection
+
+**Heartbeat-based:**
+```
+Every T seconds: Node sends "I'm alive" to monitor
+If no heartbeat for K*T seconds: Consider node dead
+```
+
+**Trade-offs:**
+- Short timeout: Fast detection, more false positives
+- Long timeout: Fewer false positives, slow detection
+
+**Phi Accrual Failure Detector:**
+- Outputs probability of failure (0-1) instead of binary
+- Adapts to network conditions
+- Used by Cassandra, Akka
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"Explain CAP theorem"**
+   - State the three properties
+   - Explain partition tolerance is mandatory
+   - Give examples of CP vs AP systems
+
+2. **"How does Raft handle leader failure?"**
+   - Followers timeout without heartbeat
+   - Election process with term increment
+   - Majority vote required
+
+3. **"Design a distributed counter"**
+   - Discuss consistency requirements
+   - Options: Single leader, CRDTs, quorum reads/writes
+
+4. **"How to handle network partition?"**
+   - Detect partition
+   - Choose availability or consistency
+   - Heal when partition ends
+
+### Decision Framework
+
+```
+Need strong consistency?
+├─ Yes → Single leader or CP system
+│        ├─ Global scale? → Spanner, CockroachDB
+│        └─ Single region? → PostgreSQL with replicas
+└─ No  → Can tolerate eventual consistency
+         ├─ Write-heavy? → Cassandra, DynamoDB
+         └─ Read-heavy? → Redis, Memcached
+```
+
+### Numbers to Know
+
+| Metric | Typical Value |
+|--------|--------------|
+| Network round-trip (same DC) | 0.5-1 ms |
+| Network round-trip (cross-region) | 50-150 ms |
+| Disk seek | 10 ms (HDD), 0.1 ms (SSD) |
+| Raft election timeout | 150-300 ms |
+| Heartbeat interval | 50-100 ms |
