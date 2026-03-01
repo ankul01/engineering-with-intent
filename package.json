@@ -11,7 +11,12 @@
     "type": "git",
     "url": "git+https://github.com/ankul01/leadership-learning.git"
   },
-  "keywords": ["interview", "system-design", "leadership", "engineering"],
+  "keywords": [
+    "interview",
+    "system-design",
+    "leadership",
+    "engineering"
+  ],
   "author": "Ankul Choudhary",
   "license": "MIT",
   "bugs": {

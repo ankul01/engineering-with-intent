@@ -3,17 +3,26 @@
 const statusConfig = {
   complete: {
     label: 'Complete',
-    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+    bgColor: '#dcfce7',
+    textColor: '#166534',
+    darkBgColor: '#14532d',
+    darkTextColor: '#86efac',
     icon: '✓'
   },
   'in-progress': {
     label: 'In Progress',
-    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+    bgColor: '#fef3c7',
+    textColor: '#92400e',
+    darkBgColor: '#78350f',
+    darkTextColor: '#fcd34d',
     icon: '⏳'
   },
   planned: {
     label: 'Planned',
-    color: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+    bgColor: '#f3f4f6',
+    textColor: '#4b5563',
+    darkBgColor: '#374151',
+    darkTextColor: '#9ca3af',
     icon: '📋'
   }
 }
@@ -21,7 +30,20 @@ const statusConfig = {
 export function StatusBadge({ status = 'planned' }) {
   const config = statusConfig[status] || statusConfig.planned
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+    <span 
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '2px 8px',
+        borderRadius: '9999px',
+        fontSize: '12px',
+        fontWeight: '500',
+        backgroundColor: config.bgColor,
+        color: config.textColor,
+        whiteSpace: 'nowrap'
+      }}
+    >
       <span>{config.icon}</span>
       <span>{config.label}</span>
     </span>
@@ -29,24 +51,48 @@ export function StatusBadge({ status = 'planned' }) {
 }
 
 export function TopicCard({ title, description, href, status = 'planned', topics = [] }) {
-  const config = statusConfig[status] || statusConfig.planned
-  
   return (
     <a 
       href={href}
-      className="block p-4 border rounded-lg hover:border-blue-500 hover:shadow-md transition-all dark:border-gray-700 dark:hover:border-blue-400"
+      style={{
+        display: 'block',
+        padding: '16px',
+        border: '1px solid #e5e7eb',
+        borderRadius: '8px',
+        textDecoration: 'none',
+        color: 'inherit',
+        transition: 'all 0.2s ease',
+        backgroundColor: 'var(--nextra-bg, #fff)'
+      }}
+      onMouseOver={(e) => {
+        e.currentTarget.style.borderColor = '#3b82f6'
+        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+      }}
+      onMouseOut={(e) => {
+        e.currentTarget.style.borderColor = '#e5e7eb'
+        e.currentTarget.style.boxShadow = 'none'
+      }}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <h3 className="font-semibold text-lg">{title}</h3>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginBottom: '8px' }}>
+        <h3 style={{ fontWeight: '600', fontSize: '18px', margin: 0 }}>{title}</h3>
         <StatusBadge status={status} />
       </div>
       {description && (
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">{description}</p>
+        <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '12px', margin: '0 0 12px 0' }}>{description}</p>
       )}
       {topics.length > 0 && (
-        <div className="flex flex-wrap gap-1">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
           {topics.map((topic, i) => (
-            <span key={i} className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+            <span 
+              key={i} 
+              style={{ 
+                fontSize: '12px', 
+                padding: '2px 8px', 
+                backgroundColor: '#f3f4f6', 
+                borderRadius: '4px',
+                color: '#4b5563'
+              }}
+            >
               {topic}
             </span>
           ))}
@@ -58,7 +104,14 @@ export function TopicCard({ title, description, href, status = 'planned', topics
 
 export function TopicGrid({ children }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+    <div 
+      style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+        gap: '16px', 
+        margin: '24px 0' 
+      }}
+    >
       {children}
     </div>
   )
@@ -66,18 +119,26 @@ export function TopicGrid({ children }) {
 
 export function ComingSoon({ title, expectedTopics = [] }) {
   return (
-    <div className="border-l-4 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 p-4 my-6 rounded-r">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xl">🚧</span>
-        <h3 className="font-semibold">Coming Soon</h3>
+    <div 
+      style={{ 
+        borderLeft: '4px solid #fbbf24', 
+        backgroundColor: '#fef3c7', 
+        padding: '16px', 
+        margin: '24px 0', 
+        borderRadius: '0 8px 8px 0' 
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+        <span style={{ fontSize: '20px' }}>🚧</span>
+        <h3 style={{ fontWeight: '600', margin: 0 }}>Coming Soon</h3>
       </div>
-      <p className="text-gray-600 dark:text-gray-400 text-sm mb-3">
+      <p style={{ color: '#92400e', fontSize: '14px', marginBottom: '12px' }}>
         This section is under development. Content will be added soon.
       </p>
       {expectedTopics.length > 0 && (
         <div>
-          <p className="text-sm font-medium mb-2">Expected topics:</p>
-          <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-400">
+          <p style={{ fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>Expected topics:</p>
+          <ul style={{ listStyleType: 'disc', paddingLeft: '20px', fontSize: '14px', color: '#92400e', margin: 0 }}>
             {expectedTopics.map((topic, i) => (
               <li key={i}>{topic}</li>
             ))}
