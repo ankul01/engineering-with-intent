@@ -1,24 +1,535 @@
 ---
 title: "Platform Design"
-description: "Internal developer platforms and platform engineering."
+description: "Internal developer platforms, platform engineering, self-service infrastructure, and golden paths."
 ---
 
 # Platform Design
 
-<ComingSoon 
-  expectedTopics={[
-    'Platform Engineering Principles',
-    'Developer Experience (DevEx)',
-    'Self-Service Infrastructure',
-    'Golden Paths',
-    'Platform as a Product',
-    'API Design for Platforms'
-  ]} 
-/>
+Platform engineering builds internal developer platforms that enable self-service capabilities and improve developer productivity. This guide covers platform design principles, patterns, and implementation strategies.
 
-## Platform Engineering Goals
+## What is Platform Engineering?
 
-- **Developer productivity** – Reduce friction
-- **Self-service** – Teams can operate independently
-- **Standardization** – Consistent patterns
-- **Scalability** – Platform grows with organization
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Platform Engineering                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Traditional Ops:                                            │
+│  Developer → Ticket → Ops Team → Provision → Developer      │
+│              (Days to weeks)                                 │
+│                                                              │
+│  Platform Engineering:                                       │
+│  Developer → Self-Service Platform → Provision              │
+│              (Minutes to hours)                              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Platform vs DevOps vs SRE
+
+| Role | Focus | Output |
+|------|-------|--------|
+| **DevOps** | Culture + practices | CI/CD, automation |
+| **SRE** | Reliability + operations | SLOs, incident response |
+| **Platform** | Developer experience | Self-service products |
+
+---
+
+## Platform Design Principles
+
+### 1. Platform as a Product
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Platform as a Product                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Customers        │ Internal developers                     │
+│  Product Manager  │ Platform team lead                      │
+│  User Research    │ Developer interviews, surveys           │
+│  Features         │ Based on developer needs                │
+│  Roadmap          │ Prioritized by impact                   │
+│  Success Metrics  │ Developer productivity, adoption        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2. Self-Service First
+
+| Capability | Self-Service | Traditional |
+|------------|--------------|-------------|
+| Create new service | Template in 10 min | Ticket, 3 days |
+| Provision database | UI/CLI in 5 min | Request, 1 week |
+| Set up CI/CD | Auto-generated | Manual config |
+| Scale resources | One-click | Approval process |
+| View logs/metrics | Dashboard access | Ask SRE |
+
+### 3. Golden Paths
+
+Opinionated, well-supported paths for common tasks.
+
+```
+Golden Path for New Service:
+┌─────────────────────────────────────────────────────────────┐
+│  1. Create Service                                           │
+│     └── backstage create service --template=go-api          │
+│                                                              │
+│  2. Generated Automatically:                                 │
+│     ├── Repository with code template                       │
+│     ├── CI/CD pipeline                                       │
+│     ├── Kubernetes manifests                                │
+│     ├── Monitoring dashboards                               │
+│     ├── Alerts (SLO-based)                                  │
+│     ├── Documentation skeleton                              │
+│     └── Service catalog entry                               │
+│                                                              │
+│  3. Developer Focus:                                         │
+│     └── Write business logic                                │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 4. Paved Roads, Not Rails
+
+```
+Paved Road (Encouraged):
+  ┌─────────────────────────────────────────────┐
+  │ Use standard templates, tools, patterns     │
+  │ → Fast, supported, best practices           │
+  └─────────────────────────────────────────────┘
+
+Off-Road (Allowed but harder):
+  ┌─────────────────────────────────────────────┐
+  │ Custom solutions when needed                │
+  │ → Possible but self-supported               │
+  └─────────────────────────────────────────────┘
+
+Rails (Forced - avoid):
+  ┌─────────────────────────────────────────────┐
+  │ Must use exactly this, no exceptions        │
+  │ → Frustrating, blocks innovation            │
+  └─────────────────────────────────────────────┘
+```
+
+---
+
+## Internal Developer Platform (IDP)
+
+### Platform Layers
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Developer Portal                          │
+│              (Backstage, Port, Cortex)                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                  Platform APIs                        │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │   │
+│  │  │ Service  │ │ Database │ │   CI/CD  │ │ Secrets  │ │   │
+│  │  │ Creation │ │Provisioning│ │  Config │ │  Mgmt   │ │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Infrastructure Abstraction               │   │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │   │
+│  │  │  Helm    │ │Terraform │ │ Crossplane│ │  Pulumi │ │   │
+│  │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                 Cloud Infrastructure                  │   │
+│  │       AWS / GCP / Azure / Kubernetes                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Service Catalog
+
+```yaml
+# Backstage catalog-info.yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: order-service
+  description: Handles order processing
+  tags:
+    - java
+    - critical
+  annotations:
+    github.com/project-slug: myorg/order-service
+    pagerduty.com/service-id: PXXXXXX
+spec:
+  type: service
+  lifecycle: production
+  owner: team-commerce
+  system: e-commerce
+  dependsOn:
+    - component:payment-service
+    - resource:orders-database
+  providesApis:
+    - orders-api
+```
+
+### Developer Portal Features
+
+| Feature | Description |
+|---------|-------------|
+| **Service Catalog** | All services, owners, dependencies |
+| **Templates** | Create new services from blueprints |
+| **Documentation** | Technical docs in one place |
+| **API Catalog** | All APIs, specs, versioning |
+| **Tech Radar** | Recommended technologies |
+| **Search** | Find anything in the org |
+| **Scorecards** | Service health and compliance |
+
+---
+
+## Developer Experience (DevEx)
+
+### Measuring Developer Experience
+
+| Metric | What it Measures |
+|--------|------------------|
+| **Lead Time** | Commit to production |
+| **Deployment Frequency** | How often teams deploy |
+| **Developer Survey (DX)** | Satisfaction, friction points |
+| **Cognitive Load** | Complexity to get things done |
+| **Time to First Deploy** | New developer onboarding |
+
+### Reducing Friction
+
+```
+Common Friction Points:
+┌─────────────────────────────────────────────────────────────┐
+│  Friction Point          │  Platform Solution              │
+├─────────────────────────────────────────────────────────────┤
+│  "How do I create a      │  Service templates with         │
+│   new service?"          │  one-command creation           │
+│                          │                                 │
+│  "Where are the logs?"   │  Unified observability          │
+│                          │  portal with service linking    │
+│                          │                                 │
+│  "How do I get a         │  Self-service provisioning      │
+│   database?"             │  with guardrails                │
+│                          │                                 │
+│  "Who owns this          │  Service catalog with           │
+│   service?"              │  ownership metadata             │
+│                          │                                 │
+│  "What's the deploy      │  Standardized CI/CD             │
+│   process?"              │  auto-generated                 │
+│                          │                                 │
+│  "Is my service          │  Scorecards and                 │
+│   compliant?"            │  automated checks               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Developer Onboarding
+
+```
+Day 1 Target: First commit merged
+
+Hour 1-2: Environment Setup
+├── Automated laptop provisioning
+├── Access to all necessary systems
+└── Development environment ready
+
+Hour 2-4: Orientation
+├── Platform overview
+├── Key tools walkthrough
+└── Find your team's services
+
+Hour 4-8: First Contribution
+├── Small starter task ready
+├── Pair with teammate
+└── PR merged to production
+
+Week 1: Fully Productive
+├── Owns small feature
+├── Understands team processes
+└── Can navigate platform
+```
+
+---
+
+## Self-Service Infrastructure
+
+### Infrastructure as Code Templates
+
+```hcl
+# Terraform module for standard service
+module "standard_service" {
+  source = "platform/standard-service"
+  
+  name        = "order-service"
+  team        = "commerce"
+  environment = "production"
+  
+  # Reasonable defaults, overridable
+  replicas    = 3
+  cpu         = "500m"
+  memory      = "512Mi"
+  
+  # Auto-configured
+  # - Kubernetes deployment
+  # - Service mesh integration
+  # - Monitoring dashboards
+  # - Alerts
+  # - Network policies
+}
+```
+
+### Crossplane Example
+
+```yaml
+# Developer requests database
+apiVersion: database.platform.io/v1
+kind: PostgresInstance
+metadata:
+  name: orders-db
+  namespace: commerce
+spec:
+  size: medium
+  backups: true
+  
+# Platform provisions automatically:
+# - RDS instance
+# - Security groups
+# - IAM roles
+# - Secrets in Vault
+# - Connection pooler
+```
+
+### Guardrails, Not Gates
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       Guardrails                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Policy Enforcement (OPA/Kyverno):                          │
+│  ├── Resource limits required                               │
+│  ├── Security context set                                   │
+│  ├── Labels present                                         │
+│  └── No privileged containers                               │
+│                                                              │
+│  Cost Controls:                                              │
+│  ├── Instance size limits by environment                    │
+│  ├── Budget alerts                                          │
+│  └── Auto-shutdown for dev environments                     │
+│                                                              │
+│  Security:                                                   │
+│  ├── Automatic vulnerability scanning                       │
+│  ├── Secrets from Vault only                                │
+│  └── Network policies enforced                              │
+│                                                              │
+│  All automated, no manual approval needed                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## API Design for Platforms
+
+### Platform API Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Declarative** | Describe desired state, not steps |
+| **Versioned** | Support multiple versions |
+| **Self-documenting** | OpenAPI specs, examples |
+| **Idempotent** | Safe to retry |
+| **Observable** | Status, events, logs |
+
+### Resource Model
+
+```yaml
+# Kubernetes-style API design
+apiVersion: platform.company.io/v1
+kind: Application
+metadata:
+  name: order-service
+  namespace: commerce
+  labels:
+    team: commerce
+    tier: backend
+spec:
+  # Desired state
+  image: registry/order-service:v1.2.3
+  replicas: 3
+  resources:
+    cpu: 500m
+    memory: 512Mi
+  
+status:
+  # Current state (managed by platform)
+  phase: Running
+  replicas: 3
+  conditions:
+    - type: Available
+      status: "True"
+    - type: Progressing
+      status: "False"
+```
+
+---
+
+## Platform Team Structure
+
+### Team Responsibilities
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Platform Team                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Core Infrastructure:                                        │
+│  ├── Kubernetes clusters                                    │
+│  ├── Networking                                             │
+│  └── Security baseline                                      │
+│                                                              │
+│  Developer Platform:                                         │
+│  ├── Service templates                                      │
+│  ├── CI/CD pipelines                                        │
+│  ├── Developer portal                                       │
+│  └── Documentation                                          │
+│                                                              │
+│  Data Platform:                                              │
+│  ├── Database provisioning                                  │
+│  ├── Data pipelines                                         │
+│  └── Analytics infrastructure                               │
+│                                                              │
+│  Observability:                                              │
+│  ├── Logging infrastructure                                 │
+│  ├── Metrics and alerting                                   │
+│  └── Tracing                                                │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Platform Team Size
+
+| Org Size | Platform Team | Ratio |
+|----------|---------------|-------|
+| 50 developers | 3-5 | 1:10-15 |
+| 200 developers | 10-15 | 1:15-20 |
+| 500 developers | 20-30 | 1:20-25 |
+
+### Success Metrics
+
+| Metric | Target |
+|--------|--------|
+| **Time to first deploy** | < 1 day |
+| **Service creation time** | < 30 minutes |
+| **Platform adoption** | > 90% of services |
+| **Developer satisfaction** | > 4/5 |
+| **Support tickets** | Decreasing trend |
+| **Deployment frequency** | Increasing trend |
+
+---
+
+## Platform Evolution
+
+### Maturity Model
+
+```
+Level 1: Ad-hoc
+├── Manual processes
+├── Tribal knowledge
+└── Hero culture
+
+Level 2: Standardized
+├── Documented processes
+├── Some automation
+└── Shared tools
+
+Level 3: Self-Service
+├── Templates and guardrails
+├── Developer portal
+└── Automated provisioning
+
+Level 4: Optimized
+├── Continuous improvement
+├── Metrics-driven
+└── Innovation enabled
+
+Level 5: Autonomous
+├── AI-assisted operations
+├── Predictive scaling
+└── Self-healing systems
+```
+
+### Starting Your Platform Journey
+
+```
+Phase 1: Foundation (3-6 months)
+├── Define platform vision
+├── Identify top pain points
+├── Build core team
+└── Quick wins (CI/CD, templates)
+
+Phase 2: Core Capabilities (6-12 months)
+├── Service catalog
+├── Self-service infrastructure
+├── Observability stack
+└── Developer portal MVP
+
+Phase 3: Scale (12-24 months)
+├── Advanced features
+├── Multi-cloud/region
+├── Platform API ecosystem
+└── Community building
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you design an internal developer platform?"**
+   - Start with developer pain points
+   - Platform as a product mindset
+   - Golden paths for common workflows
+   - Self-service with guardrails
+   - Measure adoption and satisfaction
+
+2. **"How do you balance standardization vs flexibility?"**
+   - Paved roads, not rails
+   - 80% use cases covered by golden path
+   - 20% can go off-road with more effort
+   - Contribute back improvements
+
+3. **"How do you measure platform success?"**
+   - Developer productivity (DORA metrics)
+   - Time to first deploy
+   - Adoption rate
+   - Developer satisfaction surveys
+   - Support ticket trends
+
+### Platform Checklist
+
+- [ ] Developer pain points identified?
+- [ ] Platform vision and roadmap?
+- [ ] Service templates available?
+- [ ] Self-service provisioning?
+- [ ] Observability integrated?
+- [ ] Documentation centralized?
+- [ ] Guardrails (not gates)?
+- [ ] Success metrics defined?
+- [ ] Feedback loop with developers?
+
+### Key Technologies
+
+| Category | Tools |
+|----------|-------|
+| **Portal** | Backstage, Port, Cortex |
+| **IaC** | Terraform, Pulumi, Crossplane |
+| **CI/CD** | GitHub Actions, GitLab CI, ArgoCD |
+| **Kubernetes** | EKS, GKE, AKS |
+| **Policy** | OPA, Kyverno, Sentinel |
+| **Secrets** | Vault, AWS Secrets Manager |
+| **GitOps** | ArgoCD, Flux |

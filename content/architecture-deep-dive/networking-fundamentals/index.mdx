@@ -1,69 +1,395 @@
 ---
 title: "Networking Fundamentals"
-description: "Deep dive into DNS, ISP, CDN, and core networking concepts that underpin distributed systems."
+description: "Deep dive into DNS, CDN, TCP/IP, TLS, and core networking concepts for distributed systems."
 ---
 
 # Networking Fundamentals
 
-Core networking concepts that every system designer must understand. These fundamentals form the foundation for designing globally distributed, highly available systems.
+Understanding networking is essential for designing globally distributed, highly available systems. This guide covers the core concepts every senior engineer must know.
 
-## Available Deep Dives
+## The OSI Model
 
-<TopicGrid>
-  <TopicCard
-    title="DNS, ISP & CDN Deep Dive"
-    description="Comprehensive exploration of DNS resolution, ISP routing, CDN architecture, and how they work together."
-    href="/architecture-deep-dive/networking-fundamentals/dns-isp-cdn-deep-dive"
-    status="complete"
-    topics={['DNS Hierarchy', 'BGP Routing', 'CDN Edge', 'Anycast']}
-  />
-</TopicGrid>
+```
+Layer 7 - Application   │ HTTP, HTTPS, WebSocket, gRPC
+Layer 6 - Presentation  │ SSL/TLS, Encryption, Compression
+Layer 5 - Session       │ Session management, Authentication
+Layer 4 - Transport     │ TCP, UDP, Ports
+Layer 3 - Network       │ IP, Routing, ICMP
+Layer 2 - Data Link     │ Ethernet, MAC addresses, Switches
+Layer 1 - Physical      │ Cables, Radio waves, Hardware
+```
 
-## Planned Topics
+---
 
-<TopicGrid>
-  <TopicCard
-    title="TCP/IP Deep Dive"
-    description="Connection establishment, flow control, congestion algorithms, and performance tuning."
-    href="#"
-    status="planned"
-    topics={['TCP Handshake', 'Congestion Control', 'TCP BBR']}
-  />
-  <TopicCard
-    title="HTTP/2 & HTTP/3"
-    description="Protocol evolution, multiplexing, QUIC, and performance implications."
-    href="#"
-    status="planned"
-    topics={['Multiplexing', 'Server Push', 'QUIC']}
-  />
-  <TopicCard
-    title="TLS & Security"
-    description="Certificate chains, TLS handshake, cipher suites, and HTTPS performance."
-    href="#"
-    status="planned"
-    topics={['Certificate Authority', 'TLS 1.3', 'OCSP']}
-  />
-  <TopicCard
-    title="Load Balancing"
-    description="L4 vs L7 load balancing, algorithms, health checks, and global load balancing."
-    href="#"
-    status="planned"
-    topics={['Round Robin', 'Consistent Hashing', 'Health Checks']}
-  />
-</TopicGrid>
+## DNS (Domain Name System)
 
-## Why Networking Matters
+Translates human-readable domain names to IP addresses.
 
-Understanding networking fundamentals is essential for:
+### DNS Hierarchy
 
-- **System Design** – Make informed decisions about architecture
-- **Debugging** – Diagnose latency, connectivity, and performance issues
-- **Security** – Understand attack vectors and defense mechanisms
-- **Performance** – Optimize for global scale and user experience
+```
+                    ┌─────────────┐
+                    │ Root DNS    │  (.)
+                    │ 13 servers  │
+                    └──────┬──────┘
+                           │
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    ┌────▼────┐      ┌─────▼────┐      ┌────▼────┐
+    │  .com   │      │  .org    │      │  .io    │
+    │   TLD   │      │   TLD    │      │   TLD   │
+    └────┬────┘      └──────────┘      └─────────┘
+         │
+    ┌────▼──────────┐
+    │ example.com   │
+    │ Authoritative │
+    └───────────────┘
+```
 
-### Interview Context
+### DNS Resolution Flow
 
-At senior levels, expect questions like:
-- "Walk me through what happens when you type a URL in the browser"
-- "How would you debug a 500ms latency spike for users in Asia?"
-- "Design a system that serves content globally with \<100ms latency"
+```
+┌────────┐    1. Query     ┌──────────────┐
+│ Client │────────────────▶│   Recursive  │
+│Browser │                 │   Resolver   │
+└────────┘                 │ (ISP/8.8.8.8)│
+    ▲                      └──────┬───────┘
+    │                             │
+    │ 8. IP Address               │ 2. Query Root
+    │                             ▼
+    │                      ┌─────────────┐
+    │                      │  Root DNS   │
+    │                      └──────┬──────┘
+    │                             │ 3. Referral to TLD
+    │                             ▼
+    │                      ┌─────────────┐
+    │                      │   TLD DNS   │
+    │                      │   (.com)    │
+    │                      └──────┬──────┘
+    │                             │ 4. Referral to Auth
+    │                             ▼
+    │                      ┌───────────────┐
+    │                      │ Authoritative │
+    │                      │    DNS        │
+    │                      └───────┬───────┘
+    │                              │ 5. IP Address
+    └──────────────────────────────┘
+```
+
+### DNS Record Types
+
+| Record | Purpose | Example |
+|--------|---------|---------|
+| **A** | IPv4 address | `example.com → 93.184.216.34` |
+| **AAAA** | IPv6 address | `example.com → 2606:2800:220:1:...` |
+| **CNAME** | Alias to another domain | `www.example.com → example.com` |
+| **MX** | Mail server | `example.com → mail.example.com` |
+| **TXT** | Text data (SPF, DKIM) | Verification, email auth |
+| **NS** | Name server | `example.com → ns1.example.com` |
+| **SOA** | Zone authority | Primary NS, admin email |
+
+### DNS Caching
+
+| Cache Level | TTL | Location |
+|-------------|-----|----------|
+| Browser | 60s-few mins | Client |
+| OS | Based on TTL | Client |
+| Recursive Resolver | Based on TTL | ISP/Public DNS |
+| CDN | Varies | Edge |
+
+### DNS Performance Tips
+
+- **Lower TTL before migrations** (5 min vs 24 hours)
+- **Use anycast DNS** (Route53, Cloudflare)
+- **Implement DNS prefetching** in browsers
+- **Consider GeoDNS** for regional routing
+
+---
+
+## CDN (Content Delivery Network)
+
+Caches content at edge locations globally for lower latency.
+
+### CDN Architecture
+
+```
+                         ┌─────────────┐
+                         │   Origin    │
+                         │   Server    │
+                         └──────┬──────┘
+                                │
+            ┌───────────────────┼───────────────────┐
+            │                   │                   │
+      ┌─────▼─────┐       ┌─────▼─────┐       ┌─────▼─────┐
+      │ Edge PoP  │       │ Edge PoP  │       │ Edge PoP  │
+      │ US-West   │       │  Europe   │       │   Asia    │
+      └─────┬─────┘       └─────┬─────┘       └─────┬─────┘
+            │                   │                   │
+      ┌─────▼─────┐       ┌─────▼─────┐       ┌─────▼─────┐
+      │   Users   │       │   Users   │       │   Users   │
+      │  (~20ms)  │       │  (~20ms)  │       │  (~20ms)  │
+      └───────────┘       └───────────┘       └───────────┘
+      
+      Without CDN: 200-300ms (to origin)
+      With CDN: 20-50ms (to edge)
+```
+
+### How CDN Works
+
+1. **User requests content** → DNS resolves to nearest edge
+2. **Cache HIT** → Edge serves directly (~20ms)
+3. **Cache MISS** → Edge fetches from origin, caches, serves
+
+### CDN Caching Strategies
+
+```http
+# Cache static assets aggressively
+Cache-Control: public, max-age=31536000, immutable
+
+# Cache API responses briefly
+Cache-Control: public, max-age=60, s-maxage=300
+
+# Don't cache sensitive data
+Cache-Control: private, no-store
+```
+
+### CDN Use Cases
+
+| Content Type | Strategy |
+|--------------|----------|
+| Static assets (JS, CSS, images) | Long cache, versioned URLs |
+| HTML pages | Short cache or no-cache |
+| API responses | Varies by endpoint |
+| Video/streaming | Chunked delivery, adaptive bitrate |
+
+---
+
+## TCP/IP Fundamentals
+
+### TCP Three-Way Handshake
+
+```
+Client                              Server
+   │                                   │
+   │────── SYN (seq=100) ─────────────▶│
+   │                                   │
+   │◀───── SYN-ACK (seq=300,ack=101) ──│
+   │                                   │
+   │────── ACK (ack=301) ─────────────▶│
+   │                                   │
+   │         Connection Established    │
+   │                                   │
+```
+
+### TCP vs UDP
+
+| Feature | TCP | UDP |
+|---------|-----|-----|
+| Connection | Connection-oriented | Connectionless |
+| Reliability | Guaranteed delivery | Best effort |
+| Ordering | Ordered | Unordered |
+| Speed | Slower (overhead) | Faster |
+| Use Cases | HTTP, SSH, Email | DNS, Video, Gaming |
+
+### TCP Congestion Control
+
+```
+Slow Start → Congestion Avoidance → Fast Recovery
+
+Window Size
+    │
+    │           Congestion
+    │              ▼
+    │         ┌────┐
+    │        /│    │\
+    │       / │    │ \
+    │      /  │    │  \
+    │     /   │    │   \
+    │    /    │    │    \
+    └───/─────┴────┴─────\────▶ Time
+      Slow    CA   Loss  Recovery
+      Start
+```
+
+| Algorithm | Description |
+|-----------|-------------|
+| **Slow Start** | Exponential growth until threshold |
+| **Congestion Avoidance** | Linear growth after threshold |
+| **Fast Retransmit** | Retransmit on 3 duplicate ACKs |
+| **BBR** | Model-based, better for modern networks |
+
+---
+
+## TLS (Transport Layer Security)
+
+Encrypts communication between client and server.
+
+### TLS Handshake (TLS 1.3)
+
+```
+Client                                Server
+   │                                     │
+   │─── ClientHello (supported ciphers) ─▶│
+   │                                     │
+   │◀── ServerHello + Certificate + ─────│
+   │    Finished                         │
+   │                                     │
+   │─── Finished ───────────────────────▶│
+   │                                     │
+   │     Encrypted Communication         │
+   │◀────────────────────────────────────▶│
+
+TLS 1.3: 1-RTT handshake (vs 2-RTT in TLS 1.2)
+```
+
+### Certificate Chain
+
+```
+┌─────────────────────────┐
+│     Root CA             │  (Trusted, in browser/OS)
+│  (DigiCert, Let's      │
+│   Encrypt, etc.)        │
+└───────────┬─────────────┘
+            │ Signs
+            ▼
+┌─────────────────────────┐
+│   Intermediate CA       │  (Issues end-entity certs)
+└───────────┬─────────────┘
+            │ Signs
+            ▼
+┌─────────────────────────┐
+│   Server Certificate    │  (example.com)
+└─────────────────────────┘
+```
+
+### TLS Best Practices
+
+| Practice | Recommendation |
+|----------|----------------|
+| TLS Version | TLS 1.3 (or 1.2 minimum) |
+| Cipher Suites | ECDHE + AES-GCM |
+| Certificate | 2048-bit RSA or ECDSA |
+| HSTS | Enable with long max-age |
+| Certificate Transparency | Monitor for mis-issuance |
+
+---
+
+## HTTP/2 and HTTP/3
+
+### HTTP Evolution
+
+```
+HTTP/1.1                HTTP/2                  HTTP/3
+┌────────┐             ┌────────┐             ┌────────┐
+│Request1│             │  Req1  │             │  Req1  │
+├────────┤             │  Req2  │             │  Req2  │
+│Request2│             │  Req3  │             │  Req3  │
+├────────┤             │(single │             │(QUIC)  │
+│Request3│             │ conn)  │             │        │
+└────────┘             └────────┘             └────────┘
+ 6 connections          1 connection           1 connection
+ Head-of-line           Multiplexing           No HOL blocking
+ blocking               Binary framing         0-RTT resumption
+```
+
+### HTTP/2 Features
+
+| Feature | Benefit |
+|---------|---------|
+| **Multiplexing** | Multiple requests over single connection |
+| **Header Compression** | HPACK reduces header size |
+| **Server Push** | Server sends resources proactively |
+| **Stream Priority** | Prioritize important resources |
+| **Binary Protocol** | Efficient parsing |
+
+### HTTP/3 (QUIC)
+
+- Built on **UDP** instead of TCP
+- **0-RTT connection resumption**
+- **No head-of-line blocking** (stream-level)
+- **Connection migration** (change networks without reconnect)
+
+---
+
+## Load Balancing
+
+### L4 vs L7 Load Balancing
+
+```
+Layer 4 (Transport):
+┌────────┐                      ┌────────┐
+│ Client │──TCP packet─────────▶│  L4 LB │──Forward──▶ Server
+└────────┘                      └────────┘
+    Routes based on IP + Port (fast, simple)
+
+Layer 7 (Application):
+┌────────┐                      ┌────────┐
+│ Client │──HTTP request───────▶│  L7 LB │──Route──▶ Server
+└────────┘                      └────────┘
+    Routes based on URL, headers, cookies (flexible)
+```
+
+### Load Balancing Algorithms
+
+| Algorithm | Description | Use Case |
+|-----------|-------------|----------|
+| **Round Robin** | Sequential distribution | Equal servers |
+| **Least Connections** | Route to least busy | Variable load |
+| **IP Hash** | Consistent routing by IP | Session affinity |
+| **Weighted** | Based on server capacity | Mixed hardware |
+
+### Global Server Load Balancing (GSLB)
+
+```
+User Request
+     │
+     ▼
+┌─────────────┐
+│  GeoDNS     │  → Returns nearest region IP
+└──────┬──────┘
+       │
+   ┌───┴───┐───────┐
+   │       │       │
+   ▼       ▼       ▼
+US-East  EU-West  AP-South
+   │       │       │
+   ▼       ▼       ▼
+  LB       LB      LB
+```
+
+---
+
+## Interview Quick Reference
+
+### "What happens when you type google.com?"
+
+1. **Browser cache** → Check local DNS cache
+2. **OS resolver** → Check system DNS cache
+3. **Recursive resolver** → ISP/public DNS (8.8.8.8)
+4. **Root → TLD → Authoritative** → Get IP address
+5. **TCP handshake** → SYN, SYN-ACK, ACK
+6. **TLS handshake** → Certificates, key exchange
+7. **HTTP request** → GET /
+8. **Server processing** → Generate response
+9. **Response** → HTML, then JS/CSS/images
+10. **Rendering** → DOM, CSSOM, paint
+
+### Numbers to Know
+
+| Metric | Value |
+|--------|-------|
+| Speed of light (fiber) | ~200,000 km/s |
+| US coast-to-coast RTT | ~60-80ms |
+| Transatlantic RTT | ~80-100ms |
+| DNS lookup | 20-120ms |
+| TLS handshake | 1-2 RTT |
+| TCP handshake | 1 RTT |
+| CDN edge latency | 10-50ms |
+
+### Debugging Checklist
+
+- [ ] DNS resolving correctly? (`dig`, `nslookup`)
+- [ ] TCP connection working? (`telnet`, `nc`)
+- [ ] TLS handshake successful? (`openssl s_client`)
+- [ ] HTTP response correct? (`curl -v`)
+- [ ] Latency source? (`traceroute`, `mtr`)

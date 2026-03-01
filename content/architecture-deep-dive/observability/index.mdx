@@ -1,25 +1,518 @@
 ---
 title: "Observability"
-description: "Logging, metrics, tracing, and building observable systems."
+description: "Logging, metrics, distributed tracing, and building observable systems."
 ---
 
 # Observability
 
-<ComingSoon 
-  expectedTopics={[
-    'Three Pillars: Logs, Metrics, Traces',
-    'OpenTelemetry',
-    'Distributed Tracing',
-    'Alerting Best Practices',
-    'Dashboards and Visualization',
-    'Debugging Production Systems'
-  ]} 
-/>
+Observability is the ability to understand the internal state of a system by examining its outputs. This guide covers the three pillars, instrumentation strategies, and debugging production systems.
 
-## Observability Pillars
+## Three Pillars of Observability
 
-| Pillar | What it Tells You |
-|--------|------------------|
-| **Logs** | What happened |
-| **Metrics** | How much / how fast |
-| **Traces** | Where in the system |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Observability Pillars                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │    Logs      │  │   Metrics    │  │   Traces     │       │
+│  │              │  │              │  │              │       │
+│  │ What happened│  │  How much/   │  │  Where in    │       │
+│  │  (events)    │  │  how fast    │  │  the system  │       │
+│  │              │  │  (numbers)   │  │  (journey)   │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│         │                 │                 │               │
+│         ▼                 ▼                 ▼               │
+│    Debug errors     Alert on issues    Find bottlenecks     │
+│    Audit trail      Trend analysis     Cross-service        │
+│    Forensics        Dashboards         debugging            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Logs
+
+Discrete events with context.
+
+### Structured Logging
+
+```json
+// ❌ Unstructured (hard to parse)
+"2024-01-15 10:30:45 ERROR User 123 failed to checkout: payment declined"
+
+// ✅ Structured (queryable)
+{
+  "timestamp": "2024-01-15T10:30:45Z",
+  "level": "ERROR",
+  "service": "checkout",
+  "event": "checkout_failed",
+  "user_id": "123",
+  "order_id": "ord_456",
+  "error": "payment_declined",
+  "payment_provider": "stripe",
+  "trace_id": "abc123"
+}
+```
+
+### Log Levels
+
+| Level | Usage | Example |
+|-------|-------|---------|
+| **DEBUG** | Development details | Variable values, flow |
+| **INFO** | Normal operations | Request received, job started |
+| **WARN** | Unexpected but handled | Retry succeeded, deprecated API |
+| **ERROR** | Failure requiring attention | Payment failed, DB connection lost |
+| **FATAL** | System cannot continue | Out of memory, config missing |
+
+### Logging Best Practices
+
+```python
+# ✅ Good logging
+logger.info("Order created", extra={
+    "order_id": order.id,
+    "user_id": user.id,
+    "total": order.total,
+    "items_count": len(order.items)
+})
+
+# ❌ Bad logging
+logger.info(f"Order {order.id} created for user {user.id}")  # Not structured
+logger.info("Order created")  # No context
+logger.debug(f"Processing order: {order.__dict__}")  # Too verbose/sensitive
+```
+
+### Log Aggregation Architecture
+
+```
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│Service A│  │Service B│  │Service C│
+└────┬────┘  └────┬────┘  └────┬────┘
+     │            │            │
+     └────────────┼────────────┘
+                  │
+           ┌──────▼──────┐
+           │   Log       │  (Fluentd, Logstash, Vector)
+           │  Shipper    │
+           └──────┬──────┘
+                  │
+           ┌──────▼──────┐
+           │   Message   │  (Kafka, Kinesis)
+           │   Queue     │
+           └──────┬──────┘
+                  │
+           ┌──────▼──────┐
+           │   Search    │  (Elasticsearch, Loki)
+           │   Store     │
+           └──────┬──────┘
+                  │
+           ┌──────▼──────┐
+           │  Dashboard  │  (Kibana, Grafana)
+           │   / Query   │
+           └─────────────┘
+```
+
+---
+
+## Metrics
+
+Numeric measurements over time.
+
+### Metric Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Counter** | Cumulative, only increases | Total requests, errors |
+| **Gauge** | Current value, can go up/down | Active connections, queue size |
+| **Histogram** | Distribution of values | Request latency buckets |
+| **Summary** | Calculated percentiles | P50, P90, P99 latency |
+
+### Prometheus Metrics
+
+```python
+from prometheus_client import Counter, Histogram, Gauge
+
+# Counter
+requests_total = Counter(
+    'http_requests_total',
+    'Total HTTP requests',
+    ['method', 'endpoint', 'status']
+)
+
+# Histogram
+request_latency = Histogram(
+    'http_request_duration_seconds',
+    'Request latency',
+    ['method', 'endpoint'],
+    buckets=[0.01, 0.05, 0.1, 0.5, 1.0, 5.0]
+)
+
+# Gauge
+active_connections = Gauge(
+    'active_connections',
+    'Number of active connections'
+)
+
+# Usage
+@app.route('/api/users')
+def get_users():
+    with request_latency.labels(method='GET', endpoint='/api/users').time():
+        result = fetch_users()
+    requests_total.labels(method='GET', endpoint='/api/users', status='200').inc()
+    return result
+```
+
+### RED Method (Request-focused)
+
+| Metric | Description |
+|--------|-------------|
+| **R**ate | Requests per second |
+| **E**rrors | Failed requests per second |
+| **D**uration | Latency distribution |
+
+### USE Method (Resource-focused)
+
+| Metric | Description |
+|--------|-------------|
+| **U**tilization | % time resource is busy |
+| **S**aturation | Queue depth, waiting work |
+| **E**rrors | Error events |
+
+### Key Metrics to Track
+
+| Category | Metrics |
+|----------|---------|
+| **HTTP** | Request rate, error rate, latency (P50, P90, P99) |
+| **Database** | Query time, connection pool, slow queries |
+| **Cache** | Hit rate, evictions, memory usage |
+| **Queue** | Depth, processing time, dead letters |
+| **System** | CPU, memory, disk, network |
+
+---
+
+## Distributed Tracing
+
+Follow requests across service boundaries.
+
+### Trace Structure
+
+```
+Trace (entire request journey):
+├── Span: API Gateway (15ms)
+│   ├── Span: Auth Service (5ms)
+│   └── Span: Order Service (10ms)
+│       ├── Span: Inventory Check (3ms)
+│       ├── Span: Payment Service (6ms)
+│       │   └── Span: Stripe API (5ms)
+│       └── Span: Database Write (1ms)
+```
+
+### Trace Context Propagation
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   Service A │────▶│   Service B │────▶│   Service C │
+│             │     │             │     │             │
+│ trace_id:123│     │ trace_id:123│     │ trace_id:123│
+│ span_id: a  │     │ span_id: b  │     │ span_id: c  │
+│ parent: -   │     │ parent: a   │     │ parent: b   │
+└─────────────┘     └─────────────┘     └─────────────┘
+
+HTTP Headers:
+traceparent: 00-trace_id-span_id-01
+tracestate: vendor=value
+```
+
+### OpenTelemetry
+
+```python
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+# Setup
+provider = TracerProvider()
+processor = BatchSpanProcessor(OTLPSpanExporter(endpoint="collector:4317"))
+provider.add_span_processor(processor)
+trace.set_tracer_provider(provider)
+
+tracer = trace.get_tracer(__name__)
+
+# Usage
+@app.route('/api/orders')
+def create_order():
+    with tracer.start_as_current_span("create_order") as span:
+        span.set_attribute("user_id", user.id)
+        
+        with tracer.start_as_current_span("validate_inventory"):
+            inventory = check_inventory(items)
+        
+        with tracer.start_as_current_span("process_payment"):
+            payment = charge_customer(total)
+        
+        return order
+```
+
+### Tracing Architecture
+
+```
+┌─────────┐  ┌─────────┐  ┌─────────┐
+│Service A│  │Service B│  │Service C│
+│  +SDK   │  │  +SDK   │  │  +SDK   │
+└────┬────┘  └────┬────┘  └────┬────┘
+     │            │            │
+     └────────────┼────────────┘
+                  │
+           ┌──────▼──────┐
+           │  Collector  │  (OpenTelemetry Collector)
+           │             │
+           └──────┬──────┘
+                  │
+     ┌────────────┼────────────┐
+     │            │            │
+     ▼            ▼            ▼
+┌─────────┐ ┌─────────┐ ┌─────────┐
+│ Jaeger  │ │ Zipkin  │ │  Tempo  │
+└─────────┘ └─────────┘ └─────────┘
+```
+
+---
+
+## Correlating Signals
+
+Connect logs, metrics, and traces.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Correlation Strategy                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Request comes in with trace_id: abc123                     │
+│                                                              │
+│  Logs:                                                       │
+│  {"trace_id": "abc123", "event": "order_created", ...}      │
+│                                                              │
+│  Metrics:                                                    │
+│  http_requests_total{trace_id="abc123", status="200"}       │
+│                                                              │
+│  Traces:                                                     │
+│  Span[trace_id=abc123, name="create_order"]                 │
+│                                                              │
+│  Exemplars (link metrics to traces):                        │
+│  histogram_bucket{le="0.1"} 45 # {trace_id="abc123"}        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Debugging Flow
+
+```
+1. Alert fires: "P99 latency > 500ms"
+   │
+   ▼
+2. Check metrics dashboard
+   - Which endpoint? /api/orders
+   - When did it start? 10:30 AM
+   - Which service? Order Service
+   │
+   ▼
+3. Find exemplar trace
+   - Click on slow data point
+   - Get trace_id from exemplar
+   │
+   ▼
+4. View trace
+   - See span breakdown
+   - Identify slow span: Payment Service (450ms)
+   │
+   ▼
+5. Query logs with trace_id
+   - Find error: "Payment provider timeout"
+   - See retry attempts
+   │
+   ▼
+6. Root cause identified
+```
+
+---
+
+## Alerting
+
+### Alert Design Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Actionable** | Every alert requires action |
+| **Meaningful** | Based on user impact, not internal metrics |
+| **Timely** | Not too early (noise) or too late (damage done) |
+| **Understandable** | Clear what's wrong and what to do |
+
+### SLO-Based Alerting
+
+```yaml
+# Alert on error budget consumption rate
+- alert: ErrorBudgetBurnRate
+  expr: |
+    (
+      sum(rate(http_requests_total{status=~"5.."}[1h]))
+      /
+      sum(rate(http_requests_total[1h]))
+    ) > 14.4 * (1 - 0.999)  # 14.4x burn rate
+  for: 1h
+  labels:
+    severity: critical
+  annotations:
+    summary: "Error budget burning too fast"
+    description: "At current rate, will exhaust monthly error budget in 5 days"
+```
+
+### Multi-Window Alerting
+
+```
+Fast burn (2% budget in 1 hour):
+  Window: 1 hour
+  Threshold: 14.4x normal error rate
+
+Slow burn (5% budget in 6 hours):
+  Window: 6 hours
+  Threshold: 6x normal error rate
+
+Both must fire to avoid false positives
+```
+
+### Alert Fatigue Prevention
+
+| Strategy | Implementation |
+|----------|----------------|
+| **Aggregate** | Group related alerts |
+| **Deduplicate** | Same alert once until resolved |
+| **Route** | Right team, right channel |
+| **Escalate** | Auto-escalate if unacknowledged |
+| **Review** | Regular alert hygiene |
+
+---
+
+## Dashboards
+
+### Dashboard Types
+
+| Type | Purpose | Refresh |
+|------|---------|---------|
+| **Overview** | System health at a glance | 1 min |
+| **Service** | Deep dive into single service | 30 sec |
+| **Incident** | Real-time during incidents | 5 sec |
+| **Business** | KPIs for stakeholders | 5 min |
+
+### Effective Dashboard Design
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Order Service Dashboard                                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Top Row: Key Metrics (RED)                                 │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
+│  │Requests/s│ │Error Rate│ │P99 Latency│ │SLO Status│       │
+│  │   1,234  │ │   0.1%   │ │   145ms   │ │  99.92%  │       │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘       │
+│                                                              │
+│  Middle: Time Series                                         │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │  Request Rate & Errors                              │     │
+│  │  ▁▂▃▄▅▆▇█▇▆▅▄▃▂▁                                   │     │
+│  └────────────────────────────────────────────────────┘     │
+│                                                              │
+│  Bottom: Breakdowns                                          │
+│  ┌─────────────────────┐ ┌─────────────────────┐            │
+│  │ By Endpoint         │ │ By Status Code      │            │
+│  │ /orders    45%      │ │ 200   98.5%         │            │
+│  │ /users     30%      │ │ 400    1.0%         │            │
+│  │ /products  25%      │ │ 500    0.5%         │            │
+│  └─────────────────────┘ └─────────────────────┘            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Observability Stack
+
+### Common Tools
+
+| Category | Tools |
+|----------|-------|
+| **Logs** | Elasticsearch, Loki, Splunk, Datadog |
+| **Metrics** | Prometheus, InfluxDB, Datadog, CloudWatch |
+| **Traces** | Jaeger, Zipkin, Tempo, Datadog, X-Ray |
+| **All-in-one** | Datadog, New Relic, Dynatrace, Grafana Cloud |
+| **Collector** | OpenTelemetry Collector, Fluent Bit |
+| **Visualization** | Grafana, Kibana |
+
+### OpenTelemetry Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Application                               │
+│  ┌────────────────────────────────────────────────────┐     │
+│  │           OpenTelemetry SDK                         │     │
+│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐           │     │
+│  │  │  Traces  │ │ Metrics  │ │   Logs   │           │     │
+│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘           │     │
+│  └───────┼────────────┼────────────┼─────────────────┘     │
+│          └────────────┼────────────┘                        │
+│                       ▼                                      │
+│              ┌─────────────────┐                            │
+│              │ OTLP Exporter   │                            │
+│              └────────┬────────┘                            │
+└───────────────────────┼─────────────────────────────────────┘
+                        │
+                        ▼
+               ┌─────────────────┐
+               │  OTel Collector │
+               │  - Receive      │
+               │  - Process      │
+               │  - Export       │
+               └────────┬────────┘
+                        │
+         ┌──────────────┼──────────────┐
+         ▼              ▼              ▼
+    ┌─────────┐   ┌─────────┐   ┌─────────┐
+    │ Jaeger  │   │Prometheus│   │  Loki   │
+    └─────────┘   └─────────┘   └─────────┘
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you debug a slow API endpoint?"**
+   - Check metrics: Which endpoint, when did it start?
+   - Find slow traces: Identify bottleneck span
+   - Correlate logs: Error messages, context
+   - Root cause: Database, external service, CPU?
+
+2. **"What metrics would you track for a new service?"**
+   - RED: Rate, Errors, Duration
+   - Saturation: Queue depth, thread pool
+   - Dependencies: Downstream latency, errors
+   - Business: Orders/sec, revenue
+
+3. **"How do you handle alert fatigue?"**
+   - SLO-based alerting (user impact)
+   - Multi-window burn rate
+   - Aggregate and deduplicate
+   - Regular alert review
+
+### Observability Checklist
+
+- [ ] Structured logging with trace correlation?
+- [ ] Key metrics (RED/USE) instrumented?
+- [ ] Distributed tracing enabled?
+- [ ] Dashboards for each service?
+- [ ] SLO-based alerting?
+- [ ] Runbooks for common issues?
+- [ ] Log retention policy defined?
+- [ ] Trace sampling strategy?

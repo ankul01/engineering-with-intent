@@ -1,26 +1,496 @@
 ---
 title: "Migration Strategies"
-description: "Database migrations, cloud migrations, and zero-downtime deployments."
+description: "Blue-green deployments, canary releases, feature flags, and zero-downtime migration patterns."
 ---
 
 # Migration Strategies
 
-<ComingSoon 
-  expectedTopics={[
-    'Blue-Green Deployments',
-    'Canary Releases',
-    'Feature Flags',
-    'Database Migrations',
-    'Cloud Migration Patterns',
-    'Zero-Downtime Deployments'
-  ]} 
-/>
+Safe deployment and migration strategies minimize risk while enabling continuous delivery. This guide covers patterns for zero-downtime deployments, database migrations, and cloud migrations.
 
-## Deployment Strategies
+## Deployment Strategies Overview
 
-| Strategy | Risk Level | Use Case |
-|----------|-----------|----------|
-| **Blue-Green** | Low | Full environment swap |
-| **Canary** | Medium | Gradual rollout |
-| **Rolling** | Medium | Sequential updates |
-| **Feature Flags** | Low | Decouple deploy from release |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Deployment Strategy Spectrum               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Risk ◀────────────────────────────────────────────────────▶│
+│  Low                                              High       │
+│                                                              │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐        │
+│  │ Feature │  │ Blue-   │  │ Canary  │  │ Rolling │        │
+│  │  Flags  │  │ Green   │  │         │  │         │        │
+│  └─────────┘  └─────────┘  └─────────┘  └─────────┘        │
+│      │            │            │            │               │
+│  Decouple     Instant      Gradual     Sequential          │
+│  deploy      rollback      rollout      updates             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Blue-Green Deployment
+
+Maintain two identical environments; switch traffic instantly.
+
+### Architecture
+
+```
+Before Deployment:
+┌──────────┐     ┌───────────────┐
+│  Load    │────▶│  Blue (v1)    │  ← Live
+│ Balancer │     │  Production   │
+└──────────┘     └───────────────┘
+                 ┌───────────────┐
+                 │  Green (v1)   │  ← Idle
+                 │  Staging      │
+                 └───────────────┘
+
+During Deployment:
+┌──────────┐     ┌───────────────┐
+│  Load    │     │  Blue (v1)    │  ← Live
+│ Balancer │     └───────────────┘
+└──────────┘     ┌───────────────┐
+                 │  Green (v2)   │  ← Deploy & Test
+                 └───────────────┘
+
+After Switch:
+┌──────────┐     ┌───────────────┐
+│  Load    │     │  Blue (v1)    │  ← Rollback ready
+│ Balancer │────▶│               │
+└─────┬────┘     └───────────────┘
+      │          ┌───────────────┐
+      └─────────▶│  Green (v2)   │  ← Live
+                 └───────────────┘
+```
+
+### Implementation
+
+```yaml
+# AWS ALB Target Group Switch
+aws elbv2 modify-listener \
+  --listener-arn $LISTENER_ARN \
+  --default-actions Type=forward,TargetGroupArn=$GREEN_TG
+
+# Kubernetes blue-green with Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-app
+spec:
+  selector:
+    app: my-app
+    version: green  # Switch from 'blue' to 'green'
+```
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Instant rollback | 2x infrastructure cost |
+| Full testing before switch | Database migration complexity |
+| Zero downtime | Session handling needed |
+| Simple mental model | All-or-nothing switch |
+
+### Best Practices
+
+- **Warm up green** before switch (load balancer, caches)
+- **Health checks** must pass before switching
+- **Database compatibility** between versions
+- **Session handling** (sticky sessions or external store)
+
+---
+
+## Canary Deployment
+
+Route small percentage of traffic to new version, gradually increase.
+
+### Traffic Flow
+
+```
+Phase 1: 5% Canary
+┌──────────┐     ┌───────────────┐
+│  Load    │─95%▶│   v1 (Stable) │
+│ Balancer │     └───────────────┘
+└─────┬────┘     ┌───────────────┐
+      └──5%─────▶│   v2 (Canary) │
+                 └───────────────┘
+
+Phase 2: 25% Canary
+┌──────────┐     ┌───────────────┐
+│  Load    │─75%▶│   v1 (Stable) │
+│ Balancer │     └───────────────┘
+└─────┬────┘     ┌───────────────┐
+      └─25%────▶│   v2 (Canary) │
+                 └───────────────┘
+
+Phase 3: 100% Promoted
+┌──────────┐     ┌───────────────┐
+│  Load    │────▶│   v2 (Stable) │
+│ Balancer │     └───────────────┘
+```
+
+### Automated Canary Analysis
+
+```yaml
+# Argo Rollouts Canary Strategy
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+spec:
+  strategy:
+    canary:
+      steps:
+      - setWeight: 5
+      - pause: {duration: 10m}
+      - analysis:
+          templates:
+          - templateName: success-rate
+      - setWeight: 25
+      - pause: {duration: 10m}
+      - setWeight: 50
+      - pause: {duration: 10m}
+      - setWeight: 100
+```
+
+### Canary Metrics to Monitor
+
+| Metric | Action |
+|--------|--------|
+| Error rate | Rollback if higher than baseline |
+| Latency (P50, P99) | Rollback if significantly higher |
+| CPU/Memory | Check for resource issues |
+| Business metrics | Orders, conversions, etc. |
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Limited blast radius | Slower rollout |
+| Real traffic testing | Complex traffic splitting |
+| Data-driven decisions | Requires good metrics |
+| Gradual risk exposure | Session affinity challenges |
+
+---
+
+## Rolling Deployment
+
+Update instances sequentially, maintaining availability.
+
+### Pattern
+
+```
+Initial State:
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ v1 │ │ v1 │ │ v1 │ │ v1 │
+└────┘ └────┘ └────┘ └────┘
+
+Step 1: Update first instance
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ v2 │ │ v1 │ │ v1 │ │ v1 │
+└────┘ └────┘ └────┘ └────┘
+
+Step 2: Update second instance
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ v2 │ │ v2 │ │ v1 │ │ v1 │
+└────┘ └────┘ └────┘ └────┘
+
+Final State:
+┌────┐ ┌────┐ ┌────┐ ┌────┐
+│ v2 │ │ v2 │ │ v2 │ │ v2 │
+└────┘ └────┘ └────┘ └────┘
+```
+
+### Kubernetes Rolling Update
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # Extra pods during update
+      maxUnavailable: 1  # Pods that can be down
+```
+
+### Pros and Cons
+
+| Pros | Cons |
+|------|------|
+| Resource efficient | Both versions run simultaneously |
+| Built into orchestrators | Rollback is another rolling update |
+| Gradual rollout | Longer deployment time |
+
+---
+
+## Feature Flags
+
+Decouple deployment from release; enable features without deploying.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Feature Flag System                      │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐    ┌──────────────┐                       │
+│  │  Management  │───▶│   Feature    │                       │
+│  │    Console   │    │  Flag Store  │                       │
+│  └──────────────┘    └──────┬───────┘                       │
+│                             │                                │
+│         ┌───────────────────┼───────────────────┐           │
+│         │                   │                   │           │
+│         ▼                   ▼                   ▼           │
+│    ┌─────────┐         ┌─────────┐         ┌─────────┐     │
+│    │ Service │         │ Service │         │ Service │     │
+│    │    A    │         │    B    │         │    C    │     │
+│    └─────────┘         └─────────┘         └─────────┘     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Flag Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Release** | Enable/disable features | `new_checkout_flow` |
+| **Experiment** | A/B testing | `variant_a` vs `variant_b` |
+| **Ops** | Operational controls | `enable_cache`, `rate_limit` |
+| **Permission** | User-based access | `beta_users`, `premium` |
+
+### Implementation
+
+```python
+# Simple feature flag check
+def checkout(cart):
+    if feature_flags.is_enabled("new_checkout_v2", user=current_user):
+        return new_checkout_flow(cart)
+    else:
+        return legacy_checkout_flow(cart)
+
+# Percentage rollout
+feature_flags.create(
+    name="new_checkout_v2",
+    rollout_percentage=10,  # 10% of users
+    allowed_users=["beta_testers"],
+    excluded_regions=["EU"]  # GDPR concerns
+)
+
+# Gradual rollout
+day1: feature_flags.set_percentage("new_checkout_v2", 5)
+day2: feature_flags.set_percentage("new_checkout_v2", 25)
+day3: feature_flags.set_percentage("new_checkout_v2", 50)
+day4: feature_flags.set_percentage("new_checkout_v2", 100)
+```
+
+### Feature Flag Best Practices
+
+| Practice | Description |
+|----------|-------------|
+| **Short-lived** | Remove flags after rollout complete |
+| **Consistent evaluation** | Same user gets same result |
+| **Fallback to safe default** | If flag service down |
+| **Audit logging** | Track flag changes |
+| **Testing both paths** | Test enabled and disabled |
+
+---
+
+## Database Migration Strategies
+
+### Expand-Contract Pattern
+
+Make backward-compatible changes in phases.
+
+```
+Phase 1: Expand (Add new)
+┌─────────────────────────────────┐
+│ users table                     │
+├─────────────────────────────────┤
+│ id                              │
+│ name           ← old column     │
+│ first_name     ← new column     │
+│ last_name      ← new column     │
+└─────────────────────────────────┘
+Code: Write to both, read from old
+
+Phase 2: Migrate
+- Backfill: Copy name → first_name, last_name
+- Verify: Data consistency checks
+
+Phase 3: Contract (Remove old)
+┌─────────────────────────────────┐
+│ users table                     │
+├─────────────────────────────────┤
+│ id                              │
+│ first_name     ← only column    │
+│ last_name      ← only column    │
+└─────────────────────────────────┘
+```
+
+### Zero-Downtime Schema Changes
+
+```sql
+-- ❌ Locking operation
+ALTER TABLE users ADD COLUMN email VARCHAR(255) NOT NULL;
+
+-- ✅ Zero-downtime approach
+-- Step 1: Add nullable column
+ALTER TABLE users ADD COLUMN email VARCHAR(255) NULL;
+
+-- Step 2: Backfill data
+UPDATE users SET email = CONCAT(username, '@example.com') 
+WHERE email IS NULL;
+
+-- Step 3: Add NOT NULL constraint (after all rows filled)
+ALTER TABLE users ALTER COLUMN email SET NOT NULL;
+```
+
+### Online Schema Migration Tools
+
+| Tool | Database | Features |
+|------|----------|----------|
+| **gh-ost** | MySQL | Non-blocking, pausable |
+| **pt-online-schema-change** | MySQL | Percona toolkit |
+| **pgroll** | PostgreSQL | Expand-contract |
+| **LHM** | MySQL | Large Hadron Migrator |
+
+---
+
+## Cloud Migration Patterns
+
+### The 6 Rs
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Cloud Migration Strategies                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Rehost       Replatform    Repurchase                      │
+│  (Lift &      (Lift &       (Replace)                       │
+│   Shift)       Tinker)                                      │
+│     │             │             │                           │
+│     ▼             ▼             ▼                           │
+│  ┌──────┐     ┌──────┐     ┌──────┐                        │
+│  │  VM  │     │ PaaS │     │ SaaS │                        │
+│  │ → VM │     │ + DB │     │      │                        │
+│  └──────┘     └──────┘     └──────┘                        │
+│                                                              │
+│  Refactor     Retain       Retire                           │
+│  (Re-arch)    (Keep)       (Remove)                         │
+│     │             │             │                           │
+│     ▼             ▼             ▼                           │
+│  ┌──────┐     ┌──────┐     ┌──────┐                        │
+│  │Cloud │     │On-prem│    │ EOL  │                        │
+│  │Native│     │      │     │      │                        │
+│  └──────┘     └──────┘     └──────┘                        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| Strategy | Effort | Benefit | When to Use |
+|----------|--------|---------|-------------|
+| **Rehost** | Low | Quick migration | Legacy systems |
+| **Replatform** | Medium | Some cloud benefits | DB to managed |
+| **Repurchase** | Medium | Modern SaaS | CRM, email |
+| **Refactor** | High | Full cloud-native | Core apps |
+| **Retain** | None | No risk | Compliance needs |
+| **Retire** | Low | Cost savings | Unused apps |
+
+### Data Migration Approaches
+
+```
+Option 1: Offline Migration
+┌──────────┐   Export   ┌──────────┐   Import   ┌──────────┐
+│  Source  │───────────▶│   File   │───────────▶│  Target  │
+│    DB    │            │ (S3/GCS) │            │    DB    │
+└──────────┘            └──────────┘            └──────────┘
+Downtime: Hours to days
+
+Option 2: Online Replication
+┌──────────┐   CDC    ┌──────────┐
+│  Source  │─────────▶│  Target  │
+│    DB    │  (real-  │    DB    │
+└──────────┘   time)  └──────────┘
+Downtime: Minutes (for cutover)
+
+Option 3: Dual-Write
+┌──────────┐          ┌──────────┐
+│   App    │─────────▶│  Source  │
+└────┬─────┘          └──────────┘
+     │
+     └───────────────▶┌──────────┐
+                      │  Target  │
+                      └──────────┘
+Downtime: Zero (if done right)
+```
+
+---
+
+## Rollback Strategies
+
+### Automatic Rollback Triggers
+
+| Trigger | Threshold |
+|---------|-----------|
+| Error rate | above 1% |
+| Latency P99 | above 500ms |
+| Health check | 3 consecutive failures |
+| Custom metric | Business-defined |
+
+### Rollback Implementation
+
+```yaml
+# Kubernetes rollback
+kubectl rollout undo deployment/my-app
+
+# Argo Rollouts automatic rollback
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+spec:
+  metrics:
+  - name: success-rate
+    provider:
+      prometheus:
+        query: |
+          sum(rate(requests_total{status="200"}[5m])) /
+          sum(rate(requests_total[5m]))
+    successCondition: result[0] >= 0.95
+    failureLimit: 3
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you deploy to production with zero downtime?"**
+   - Blue-green for instant switch
+   - Canary for gradual rollout
+   - Rolling for resource efficiency
+   - Feature flags for decoupled release
+
+2. **"How do you handle database migrations?"**
+   - Expand-contract pattern
+   - Backward-compatible changes only
+   - Online migration tools (gh-ost)
+   - Separate deploy from migrate
+
+3. **"What's your rollback strategy?"**
+   - Automated triggers on metrics
+   - Instant switch (blue-green)
+   - Feature flags for instant disable
+   - Database backward compatibility
+
+### Deployment Checklist
+
+- [ ] Deployment strategy chosen?
+- [ ] Rollback plan tested?
+- [ ] Monitoring/alerts configured?
+- [ ] Database migration backward-compatible?
+- [ ] Feature flags for risky changes?
+- [ ] Health checks defined?
+- [ ] Traffic routing verified?
