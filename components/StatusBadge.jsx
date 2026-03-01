@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 const statusConfig = {
   complete: {
     label: 'Complete',
@@ -51,9 +53,13 @@ export function StatusBadge({ status = 'planned' }) {
 }
 
 export function TopicCard({ title, description, href, status = 'planned', topics = [] }) {
+  const isPlaceholder = href === '#'
+  const CardWrapper = isPlaceholder ? 'div' : Link
+  const wrapperProps = isPlaceholder ? {} : { href }
+  
   return (
-    <a 
-      href={href}
+    <CardWrapper 
+      {...wrapperProps}
       style={{
         display: 'block',
         padding: '16px',
@@ -62,11 +68,15 @@ export function TopicCard({ title, description, href, status = 'planned', topics
         textDecoration: 'none',
         color: 'inherit',
         transition: 'all 0.2s ease',
-        backgroundColor: 'var(--nextra-bg, #fff)'
+        backgroundColor: 'var(--nextra-bg, #fff)',
+        cursor: isPlaceholder ? 'default' : 'pointer',
+        opacity: isPlaceholder ? 0.7 : 1
       }}
       onMouseOver={(e) => {
-        e.currentTarget.style.borderColor = '#3b82f6'
-        e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+        if (!isPlaceholder) {
+          e.currentTarget.style.borderColor = '#3b82f6'
+          e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+        }
       }}
       onMouseOut={(e) => {
         e.currentTarget.style.borderColor = '#e5e7eb'
@@ -98,7 +108,7 @@ export function TopicCard({ title, description, href, status = 'planned', topics
           ))}
         </div>
       )}
-    </a>
+    </CardWrapper>
   )
 }
 
