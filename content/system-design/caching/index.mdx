@@ -1,30 +1,747 @@
 ---
 title: "Caching"
-description: "Cache strategies, invalidation patterns, and distributed caching."
+description: "Cache strategies, invalidation patterns, CDN, and distributed caching for system design."
 ---
 
 # Caching
 
-<ComingSoon 
-  expectedTopics={[
-    'Cache-Aside Pattern',
-    'Write-Through vs Write-Behind',
-    'Cache Invalidation Strategies',
-    'Redis Deep Dive',
-    'CDN Caching',
-    'Distributed Caching'
-  ]} 
-/>
+Caching is storing frequently accessed data in a faster storage layer to reduce latency, database load, and improve throughput. It's one of the most effective techniques for scaling systems.
 
-## Caching Patterns Quick Reference
+## Why Caching?
 
-| Pattern | Use Case |
-|---------|----------|
-| **Cache-Aside** | Application manages cache, most flexible |
-| **Read-Through** | Cache loads data on miss |
-| **Write-Through** | Writes go to cache and DB synchronously |
-| **Write-Behind** | Writes to cache, async to DB |
+```
+Without Cache:                    With Cache:
+┌────────┐     ┌────────┐        ┌────────┐     ┌───────┐     ┌────────┐
+│ Client │────▶│   DB   │        │ Client │────▶│ Cache │────▶│   DB   │
+└────────┘     └────────┘        └────────┘     └───────┘     └────────┘
+   Every request hits DB            Cache hit: ~1ms
+   Latency: 10-100ms                Cache miss: falls through to DB
+```
+
+| Benefit | Description |
+|---------|-------------|
+| **Reduced Latency** | Memory access (~1ms) vs disk/network (~10-100ms) |
+| **Lower DB Load** | Fewer queries hit the database |
+| **Higher Throughput** | Serve more requests with same resources |
+| **Cost Savings** | Reduce expensive database scaling |
+
+---
+
+## Caching Strategies
+
+### 1. Cache-Aside (Lazy Loading)
+
+Application manages the cache explicitly. Most common pattern.
+
+```
+Read Flow:
+┌────────┐  1. Check  ┌───────┐
+│  App   │───────────▶│ Cache │
+└────────┘            └───────┘
+    │                     │
+    │ 3. Return          2. Miss
+    ▼                     │
+┌────────┐  4. Fetch  ┌───────┐
+│  App   │◀───────────│  DB   │
+└────────┘            └───────┘
+    │
+    │ 5. Populate cache
+    ▼
+┌───────┐
+│ Cache │
+└───────┘
+```
+
+```python
+def get_user(user_id):
+    # 1. Check cache
+    user = cache.get(f"user:{user_id}")
+    if user:
+        return user  # Cache hit
+    
+    # 2. Cache miss - fetch from DB
+    user = db.query("SELECT * FROM users WHERE id = ?", user_id)
+    
+    # 3. Populate cache
+    cache.set(f"user:{user_id}", user, ttl=3600)
+    
+    return user
+```
+
+| Pros | Cons |
+|------|------|
+| Only requested data is cached | Cache miss penalty (extra round trip) |
+| Resilient to cache failures | Data can become stale |
+| Simple to implement | Application manages cache logic |
+
+**Best for**: Read-heavy workloads, data that's expensive to compute
+
+---
+
+### 2. Read-Through
+
+Cache sits between application and database. Cache itself fetches data on miss.
+
+```
+┌────────┐         ┌───────┐         ┌────────┐
+│  App   │────────▶│ Cache │────────▶│   DB   │
+└────────┘         └───────┘         └────────┘
+                       │
+              Automatically fetches
+              on cache miss
+```
+
+| Pros | Cons |
+|------|------|
+| Simpler application code | Cache library must support DB access |
+| Consistent read pattern | Less flexibility |
+
+**Best for**: When using cache providers with built-in read-through support
+
+---
+
+### 3. Write-Through
+
+Every write goes to both cache and database synchronously.
+
+```
+Write Flow:
+┌────────┐  1. Write  ┌───────┐  2. Write  ┌────────┐
+│  App   │───────────▶│ Cache │───────────▶│   DB   │
+└────────┘            └───────┘            └────────┘
+                          │
+                    Both updated
+                    synchronously
+```
+
+```python
+def update_user(user_id, data):
+    # Write to DB first
+    db.update("UPDATE users SET ... WHERE id = ?", data, user_id)
+    
+    # Then update cache
+    cache.set(f"user:{user_id}", data, ttl=3600)
+```
+
+| Pros | Cons |
+|------|------|
+| Cache always consistent with DB | Higher write latency (2 writes) |
+| No stale data | Every write hits both stores |
+| Simple mental model | Writes to data never read waste cache space |
+
+**Best for**: Data where consistency is critical, read-after-write scenarios
+
+---
+
+### 4. Write-Behind (Write-Back)
+
+Writes go to cache immediately, then asynchronously persisted to database.
+
+```
+Write Flow:
+┌────────┐  1. Write  ┌───────┐
+│  App   │───────────▶│ Cache │  (returns immediately)
+└────────┘            └───────┘
+                          │
+                    2. Async write
+                    (batched/delayed)
+                          ▼
+                      ┌────────┐
+                      │   DB   │
+                      └────────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Lowest write latency | Risk of data loss if cache fails |
+| Batch writes to DB | Complex to implement correctly |
+| Absorbs write spikes | Eventual consistency |
+
+**Best for**: High write throughput, analytics, metrics, non-critical data
+
+---
+
+### 5. Write-Around
+
+Writes go directly to DB, bypassing cache. Cache populated only on reads.
+
+```
+Write: App ──────────────────────▶ DB
+                                   
+Read:  App ───▶ Cache (miss) ───▶ DB
+                  │
+            Populate on read
+```
+
+| Pros | Cons |
+|------|------|
+| Avoids cache pollution from writes | Higher read latency after writes |
+| Good for write-once data | Cache may have stale data |
+
+**Best for**: Data written once but rarely read, log data
+
+---
+
+## Strategy Comparison
+
+| Strategy | Read Latency | Write Latency | Consistency | Complexity |
+|----------|--------------|---------------|-------------|------------|
+| Cache-Aside | Low (hit) / High (miss) | N/A | Eventual | Low |
+| Read-Through | Low (hit) / Medium (miss) | N/A | Eventual | Medium |
+| Write-Through | Low | High | Strong | Medium |
+| Write-Behind | Low | Very Low | Eventual | High |
+| Write-Around | High (after write) | Low | Eventual | Low |
+
+---
+
+## Cache Eviction Policies
+
+When cache is full, which items to remove?
+
+### LRU (Least Recently Used)
+
+Evicts items that haven't been accessed for the longest time.
+
+```
+Access sequence: A, B, C, A, D (cache size: 3)
+
+Step 1: [A]           - A added
+Step 2: [A, B]        - B added  
+Step 3: [A, B, C]     - C added (full)
+Step 4: [B, C, A]     - A accessed, moves to end
+Step 5: [C, A, D]     - D added, B evicted (least recent)
+```
+
+**Best for**: General-purpose, most common choice
+
+### LFU (Least Frequently Used)
+
+Evicts items with lowest access count.
+
+```
+Item frequencies: A(5), B(2), C(8), D(1)
+Eviction order: D, B, A, C
+```
+
+**Best for**: When access patterns are stable, popular items stay popular
+
+### FIFO (First In, First Out)
+
+Evicts oldest items regardless of access pattern.
+
+**Best for**: Simple use cases, time-based data
+
+### TTL (Time To Live)
+
+Items expire after a set duration.
+
+```python
+cache.set("session:123", data, ttl=3600)  # Expires in 1 hour
+```
+
+**Best for**: Session data, tokens, time-sensitive data
+
+### Comparison
+
+| Policy | Pros | Cons | Use Case |
+|--------|------|------|----------|
+| **LRU** | Adapts to access patterns | Doesn't consider frequency | General purpose |
+| **LFU** | Keeps popular items | Slow to adapt to changes | Stable access patterns |
+| **FIFO** | Simple, predictable | Ignores access patterns | Time-series data |
+| **TTL** | Guarantees freshness | May evict useful data | Sessions, tokens |
+
+---
 
 ## Cache Invalidation
 
-"There are only two hard things in Computer Science: cache invalidation and naming things." — Phil Karlton
+> "There are only two hard things in Computer Science: cache invalidation and naming things." — Phil Karlton
+
+### Invalidation Strategies
+
+#### 1. TTL-Based Expiration
+
+```python
+cache.set("user:123", user_data, ttl=300)  # 5 minutes
+```
+
+| Pros | Cons |
+|------|------|
+| Simple to implement | Data stale until expiry |
+| No coordination needed | Hard to choose right TTL |
+
+#### 2. Event-Driven Invalidation
+
+Invalidate cache when source data changes.
+
+```python
+def update_user(user_id, data):
+    db.update(user_id, data)
+    cache.delete(f"user:{user_id}")  # Invalidate
+    
+    # Or publish event
+    event_bus.publish("user.updated", {"user_id": user_id})
+```
+
+```
+┌────────┐  Update  ┌────────┐  Event  ┌───────────┐  Invalidate  ┌───────┐
+│ Service│─────────▶│   DB   │────────▶│Event Queue│─────────────▶│ Cache │
+└────────┘          └────────┘         └───────────┘              └───────┘
+```
+
+#### 3. Version-Based Invalidation
+
+Include version in cache key.
+
+```python
+version = db.get_version("users")
+cache_key = f"user:{user_id}:v{version}"
+```
+
+#### 4. Tag-Based Invalidation
+
+Group related cache entries with tags.
+
+```python
+cache.set("product:123", data, tags=["products", "category:electronics"])
+cache.invalidate_by_tag("category:electronics")  # Clears all tagged items
+```
+
+### Invalidation Patterns by Consistency Need
+
+| Consistency Level | Strategy | Latency |
+|-------------------|----------|---------|
+| Strong | Write-through + invalidate | High |
+| Eventual (seconds) | Event-driven invalidation | Medium |
+| Eventual (minutes) | Short TTL | Low |
+| Best-effort | Long TTL | Lowest |
+
+---
+
+## Distributed Caching
+
+### Redis
+
+In-memory data structure store with persistence, replication, and clustering.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Redis Cluster                        │
+├─────────────┬─────────────┬─────────────┬──────────────┤
+│  Master 1   │  Master 2   │  Master 3   │   Master 4   │
+│ Slots 0-4095│Slots 4096-8191│Slots 8192-12287│Slots 12288-16383│
+├─────────────┼─────────────┼─────────────┼──────────────┤
+│  Replica 1  │  Replica 2  │  Replica 3  │   Replica 4  │
+└─────────────┴─────────────┴─────────────┴──────────────┘
+```
+
+**Key Features**:
+- Data structures: Strings, Lists, Sets, Sorted Sets, Hashes, Streams
+- Persistence: RDB snapshots, AOF logging
+- Pub/Sub messaging
+- Lua scripting
+- Cluster mode with automatic sharding
+
+**Common Use Cases**:
+
+| Use Case | Data Structure | Example |
+|----------|---------------|---------|
+| Session storage | Hash | `HSET session:123 user_id 456` |
+| Rate limiting | String + INCR | `INCR api:user:123:minute` |
+| Leaderboards | Sorted Set | `ZADD leaderboard 100 "player1"` |
+| Real-time analytics | HyperLogLog | `PFADD visitors "user123"` |
+| Message queues | List/Stream | `LPUSH queue:tasks "job1"` |
+| Geospatial | Geo | `GEOADD locations 77.5 12.9 "store1"` |
+
+### Memcached
+
+Simple, high-performance, distributed memory caching.
+
+```
+┌─────────┐     ┌─────────────────────────────────┐
+│ Client  │────▶│         Memcached Pool          │
+└─────────┘     ├─────────┬─────────┬─────────────┤
+                │ Node 1  │ Node 2  │   Node 3    │
+                │  25%    │  25%    │    50%      │
+                └─────────┴─────────┴─────────────┘
+                      Consistent hashing
+```
+
+**Key Features**:
+- Simple key-value only
+- Multi-threaded (uses all CPU cores)
+- No persistence (pure cache)
+- Consistent hashing for distribution
+
+### Redis vs Memcached
+
+| Feature | Redis | Memcached |
+|---------|-------|-----------|
+| Data Structures | Rich (lists, sets, etc.) | Key-value only |
+| Persistence | Yes (RDB, AOF) | No |
+| Replication | Yes | No (client-side) |
+| Clustering | Built-in | Client-side |
+| Memory Efficiency | Lower | Higher |
+| Multi-threaded | Single-threaded* | Multi-threaded |
+| Pub/Sub | Yes | No |
+| Lua Scripting | Yes | No |
+
+*Redis 6+ has I/O threading
+
+**Choose Redis when**: You need data structures, persistence, or pub/sub
+
+**Choose Memcached when**: Simple caching, maximum memory efficiency
+
+---
+
+## CDN Caching
+
+Content Delivery Network caches content at edge locations globally.
+
+```
+                         ┌─────────────┐
+                         │   Origin    │
+                         │   Server    │
+                         └──────┬──────┘
+                                │
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+     ┌─────┴─────┐        ┌─────┴─────┐        ┌─────┴─────┐
+     │  Edge PoP │        │  Edge PoP │        │  Edge PoP │
+     │  (US-West)│        │  (Europe) │        │  (Asia)   │
+     └─────┬─────┘        └─────┬─────┘        └─────┬─────┘
+           │                    │                    │
+     ┌─────┴─────┐        ┌─────┴─────┐        ┌─────┴─────┐
+     │   Users   │        │   Users   │        │   Users   │
+     └───────────┘        └───────────┘        └───────────┘
+```
+
+### Cache-Control Headers
+
+```http
+Cache-Control: max-age=3600, public
+Cache-Control: private, no-cache
+Cache-Control: no-store
+Cache-Control: stale-while-revalidate=60
+```
+
+| Directive | Meaning |
+|-----------|---------|
+| `max-age=N` | Cache for N seconds |
+| `public` | Can be cached by CDN/proxies |
+| `private` | Only browser can cache |
+| `no-cache` | Must revalidate before using |
+| `no-store` | Don't cache at all |
+| `stale-while-revalidate` | Serve stale while fetching fresh |
+
+### What to Cache on CDN
+
+| Content Type | Cache Strategy | TTL |
+|--------------|---------------|-----|
+| Static assets (JS, CSS, images) | Aggressive, versioned URLs | 1 year |
+| HTML pages | Short TTL or no-cache | 0-5 min |
+| API responses | Varies by endpoint | 1-60 min |
+| User-specific content | private or no-store | - |
+
+### CDN Invalidation
+
+```bash
+# Invalidate specific paths
+aws cloudfront create-invalidation --paths "/images/*" "/css/*"
+
+# Versioned URLs (better approach)
+/static/app.v2.3.1.js  # Change version, no invalidation needed
+```
+
+---
+
+## Multi-Level Caching (L1/L2)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                        Request Flow                            │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────┐    ┌──────────────┐    ┌──────────┐    ┌──────┐ │
+│  │ Browser  │───▶│     CDN      │───▶│ App Cache│───▶│  DB  │ │
+│  │  Cache   │    │   (Edge)     │    │  (Redis) │    │      │ │
+│  └──────────┘    └──────────────┘    └──────────┘    └──────┘ │
+│      L1              L2                  L3           Origin   │
+│   (~0ms)          (~10-50ms)          (~1-5ms)      (~10-100ms)│
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+### In-Process vs Distributed Cache
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Application Server                      │
+│  ┌─────────────────┐                                        │
+│  │  L1: In-Process │  (Caffeine, Guava)                     │
+│  │  - Fastest      │  - No network hop                      │
+│  │  - Limited size │  - Per-instance, not shared            │
+│  └────────┬────────┘                                        │
+│           │ Miss                                             │
+│           ▼                                                  │
+│  ┌─────────────────┐                                        │
+│  │ L2: Distributed │  (Redis, Memcached)                    │
+│  │  - Shared       │  - Network hop (~1ms)                  │
+│  │  - Large        │  - Consistent across instances         │
+│  └────────┬────────┘                                        │
+│           │ Miss                                             │
+│           ▼                                                  │
+│       ┌───────┐                                              │
+│       │  DB   │                                              │
+│       └───────┘                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+```java
+// L1: In-process cache (Caffeine)
+Cache<String, User> localCache = Caffeine.newBuilder()
+    .maximumSize(10_000)
+    .expireAfterWrite(5, TimeUnit.MINUTES)
+    .build();
+
+// L2: Distributed cache (Redis)
+public User getUser(String userId) {
+    // Check L1
+    User user = localCache.getIfPresent(userId);
+    if (user != null) return user;
+    
+    // Check L2
+    user = redisTemplate.opsForValue().get("user:" + userId);
+    if (user != null) {
+        localCache.put(userId, user);  // Populate L1
+        return user;
+    }
+    
+    // Fetch from DB
+    user = userRepository.findById(userId);
+    redisTemplate.opsForValue().set("user:" + userId, user, Duration.ofHours(1));
+    localCache.put(userId, user);
+    return user;
+}
+```
+
+---
+
+## Common Caching Problems
+
+### 1. Cache Stampede (Thundering Herd)
+
+Many requests hit DB simultaneously when a popular cache key expires.
+
+```
+Cache expires ──▶ 1000 requests ──▶ All hit DB ──▶ DB overload
+```
+
+**Solutions**:
+
+```python
+# 1. Locking (only one fetches from DB)
+def get_with_lock(key):
+    value = cache.get(key)
+    if value:
+        return value
+    
+    lock = cache.acquire_lock(f"lock:{key}", timeout=5)
+    if lock:
+        try:
+            value = db.fetch(key)
+            cache.set(key, value, ttl=300)
+        finally:
+            lock.release()
+    else:
+        # Wait and retry
+        time.sleep(0.1)
+        return get_with_lock(key)
+    
+    return value
+
+# 2. Probabilistic early expiration
+def get_with_early_refresh(key, ttl=300, beta=1):
+    value, expiry = cache.get_with_expiry(key)
+    
+    # Probabilistically refresh before expiry
+    if value and random.random() < beta * math.exp(-time_to_expiry):
+        refresh_async(key)
+    
+    return value
+
+# 3. Stale-while-revalidate
+cache.set(key, value, ttl=300, stale_ttl=60)  # Serve stale for 60s while refreshing
+```
+
+### 2. Cache Penetration
+
+Requests for non-existent data bypass cache and hit DB every time.
+
+```
+Request for user:999999 ──▶ Cache miss ──▶ DB (not found) ──▶ Repeat
+```
+
+**Solutions**:
+
+```python
+# 1. Cache null/empty results
+def get_user(user_id):
+    cached = cache.get(f"user:{user_id}")
+    if cached == "NULL":
+        return None
+    if cached:
+        return cached
+    
+    user = db.get_user(user_id)
+    if user is None:
+        cache.set(f"user:{user_id}", "NULL", ttl=60)  # Short TTL
+    else:
+        cache.set(f"user:{user_id}", user, ttl=3600)
+    
+    return user
+
+# 2. Bloom filter
+bloom_filter = BloomFilter(expected_items=1_000_000, fp_rate=0.01)
+
+def get_user(user_id):
+    if not bloom_filter.might_contain(user_id):
+        return None  # Definitely doesn't exist
+    
+    # Proceed with cache/DB lookup
+    return fetch_from_cache_or_db(user_id)
+```
+
+### 3. Cache Breakdown
+
+A single hot key expires, causing spike in DB load.
+
+**Solutions**:
+- Never expire hot keys (refresh before expiry)
+- Use locking for hot key refresh
+- Replicate hot keys across cache nodes
+
+### 4. Data Inconsistency
+
+Cache and database have different values.
+
+```
+Timeline:
+T1: Thread A reads user from DB (version 1)
+T2: Thread B updates user in DB (version 2)
+T3: Thread B updates cache (version 2)
+T4: Thread A writes to cache (version 1) ← Stale data!
+```
+
+**Solutions**:
+
+```python
+# 1. Delete instead of update
+def update_user(user_id, data):
+    db.update(user_id, data)
+    cache.delete(f"user:{user_id}")  # Next read will fetch fresh
+
+# 2. Use versioning
+def update_user(user_id, data, expected_version):
+    new_version = db.update_with_version(user_id, data, expected_version)
+    cache.set(f"user:{user_id}:v{new_version}", data)
+```
+
+---
+
+## Cache Sizing and Capacity Planning
+
+### Hit Rate Calculation
+
+```
+Hit Rate = Cache Hits / (Cache Hits + Cache Misses)
+
+Example:
+- 900 hits + 100 misses = 90% hit rate
+- Target: 95%+ for production systems
+```
+
+### Memory Sizing
+
+```
+Memory = (Avg Item Size) × (Number of Items) × (Overhead Factor)
+
+Example:
+- 1M users × 2KB per user × 1.3 overhead = ~2.6 GB
+```
+
+### Key Design Guidelines
+
+```python
+# Good: Predictable, hierarchical
+"user:123:profile"
+"user:123:settings"
+"product:456:details"
+"session:abc123"
+
+# Bad: Unpredictable, too long
+"getUserByIdFromDatabaseWithAllRelations:123"
+```
+
+| Guideline | Recommendation |
+|-----------|---------------|
+| Key length | Keep short (bandwidth cost) |
+| Naming | Use colons as delimiters |
+| Versioning | Include version for schema changes |
+| Namespacing | Prefix by service/domain |
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"Design a cache for a social media feed"**
+   - Cache-aside with TTL
+   - Invalidate on new posts
+   - Consider write-behind for view counts
+
+2. **"How would you handle cache invalidation across services?"**
+   - Event-driven invalidation via message queue
+   - Pub/sub for real-time updates
+   - TTL as fallback
+
+3. **"Your cache hit rate dropped from 95% to 60%. How do you debug?"**
+   - Check for key pattern changes
+   - Analyze eviction rate (memory pressure?)
+   - Look for cache stampede after deploys
+   - Verify TTL settings
+
+### Numbers to Know
+
+| Metric | Value |
+|--------|-------|
+| Redis single-node throughput | 100K+ ops/sec |
+| Redis latency (local) | ~0.1ms |
+| Redis latency (network) | 1-5ms |
+| Memcached throughput | 200K+ ops/sec |
+| CDN latency (edge hit) | 10-50ms |
+| Typical target hit rate | 95%+ |
+
+### Design Checklist
+
+- [ ] What data to cache? (Hot data, expensive queries)
+- [ ] Caching strategy? (Cache-aside, write-through, etc.)
+- [ ] Eviction policy? (LRU, LFU, TTL)
+- [ ] Invalidation approach? (TTL, event-driven, versioned)
+- [ ] Cache size and memory budget?
+- [ ] Distributed or local? (Redis vs in-process)
+- [ ] Failure mode? (What if cache is down?)
+- [ ] Cold start strategy? (Pre-warming?)
+- [ ] Monitoring? (Hit rate, latency, memory)
+
+### Quick Decision Matrix
+
+| Scenario | Recommended Approach |
+|----------|---------------------|
+| Read-heavy, tolerance for staleness | Cache-aside + TTL |
+| Strong consistency needed | Write-through |
+| High write throughput | Write-behind |
+| Global distribution | CDN + regional caches |
+| Session storage | Redis with persistence |
+| Simple key-value, max performance | Memcached |
+| Complex data structures | Redis |
