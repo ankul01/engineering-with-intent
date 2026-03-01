@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "postbuild": "pagefind --site out --output-path out/_pagefind",
     "start": "next start"
   },
   "repository": {
@@ -29,5 +30,8 @@
     "nextra-theme-docs": "^4.6.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "pagefind": "^1.4.0"
   }
 }
