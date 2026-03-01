@@ -1,15 +1,416 @@
 ---
 title: "Stakeholder Management"
-description: "Working with executives and partners."
+description: "Working effectively with executives, PMs, and cross-functional partners."
 ---
 
 # Stakeholder Management
 
-<ComingSoon 
-  expectedTopics={[
-    'Executive Communication',
-    'Managing Expectations',
-    'Cross-functional Alignment',
-    'Influence Strategies'
-  ]} 
-/>
+Engineering leaders must work effectively with executives, product managers, and cross-functional teams. This guide covers alignment, communication, and influence strategies.
+
+## Understanding Stakeholders
+
+### Stakeholder Map
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Stakeholder Map                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  High Power │   Keep Satisfied  │   Manage Closely  │       │
+│             │   (Executives)    │   (PM, Key Partners)│      │
+│             ├───────────────────┼───────────────────┤       │
+│             │   Monitor         │   Keep Informed   │       │
+│  Low Power  │   (Tangential)    │   (Team members)  │       │
+│             │                   │                   │       │
+│             └───────────────────┴───────────────────┘       │
+│                  Low Interest    High Interest               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Stakeholder Personas
+
+| Stakeholder | Primary Concerns | How to Work With |
+|-------------|------------------|------------------|
+| **CEO/Executives** | Strategy, business impact, risks | Concise updates, data-driven |
+| **Product Manager** | User value, roadmap, timelines | Partnership, tradeoff discussions |
+| **Engineering VP** | Technical excellence, team health | Regular 1:1s, proactive escalation |
+| **Design** | User experience, design quality | Early collaboration, rapid iteration |
+| **Sales/CS** | Customer needs, feature requests | Context sharing, expectation setting |
+| **Finance** | Costs, ROI, headcount | Clear justifications, planning |
+| **Legal/Compliance** | Risk, regulations | Early involvement, documentation |
+
+---
+
+## Executive Communication
+
+### What Executives Care About
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Executive Communication Priorities              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. Business Impact                                          │
+│     - Revenue, growth, customer satisfaction                │
+│     - Not: Technical details                                │
+│                                                              │
+│  2. Risks and Mitigation                                    │
+│     - What could go wrong, what's the plan                  │
+│     - Not: "Everything is fine"                             │
+│                                                              │
+│  3. Clear Asks                                               │
+│     - What do you need from them                            │
+│     - Not: Venting without purpose                          │
+│                                                              │
+│  4. Concise Updates                                          │
+│     - Bottom line up front                                  │
+│     - Not: Lengthy history lessons                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Status Update Framework (SBAR)
+
+```
+S - Situation   → What's happening
+B - Background  → Brief context (minimal)
+A - Assessment  → Your analysis
+R - Recommendation → What you suggest
+
+Example:
+"S: Payment processing is down for 15 minutes.
+ B: The third-party provider is having issues.
+ A: We're losing approximately $10K per hour.
+ R: I recommend we switch to backup provider. 
+    I need approval to proceed."
+```
+
+### The Pyramid Principle
+
+```
+Lead with conclusion, then support with details.
+
+❌ Wrong order:
+"We analyzed the data for 2 weeks. We found that
+ users in segment A convert better. The p-value
+ was 0.02. So we should focus on segment A."
+
+✅ Right order:
+"We should focus on segment A because they
+ convert 2x better. Here's the data that
+ supports this [available if they want details]."
+```
+
+### Executive Meeting Prep
+
+```
+Before the Meeting:
+├── What's the one thing I need them to understand?
+├── What decision or support do I need?
+├── What questions will they likely ask?
+└── What data supports my points?
+
+During the Meeting:
+├── Start with the key point
+├── Be concise (they'll ask for more if needed)
+├── Own the numbers
+└── End with clear next steps
+
+After the Meeting:
+├── Send summary email
+├── Follow up on commitments
+└── Track progress
+```
+
+---
+
+## Working with Product
+
+### PM Partnership Model
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               Healthy PM-Engineering Partnership             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  PM Owns:                    Engineering Owns:               │
+│  - What to build             - How to build                  │
+│  - Why (user/business need)  - Technical approach            │
+│  - Prioritization            - Estimates                     │
+│  - Success metrics           - Technical quality             │
+│  - External communication    - Operational excellence        │
+│                                                              │
+│  Shared:                                                     │
+│  - Tradeoff decisions                                        │
+│  - Timeline negotiations                                     │
+│  - Risk assessment                                           │
+│  - Release decisions                                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Tradeoff Conversations
+
+```
+Scenario: PM wants feature by end of quarter
+
+Instead of: "That's impossible."
+
+Try: "Here are the options:
+     
+     Option A: Full scope, end of Q2
+     - All features, proper testing
+     - Risk: None
+     
+     Option B: Reduced scope, end of Q1
+     - Core feature only
+     - Risk: Missing 2 edge cases
+     
+     Option C: Full scope, rushed, end of Q1
+     - Cut testing, add tech debt
+     - Risk: Potential prod issues
+     
+     I recommend Option B. What matters most?"
+```
+
+### Saying No Effectively
+
+| Instead of... | Try... |
+|---------------|--------|
+| "No, we can't do that" | "Yes, and here's what it would take" |
+| "That's impossible" | "That's challenging given [constraint]. Here are alternatives" |
+| "We don't have time" | "If we do X, we'd need to drop Y. Which is more important?" |
+| "That's not how it works" | "Help me understand the goal. Maybe there's another way" |
+
+---
+
+## Managing Expectations
+
+### Estimation and Commitments
+
+```
+Estimation Pitfalls:
+┌─────────────────────────────────────────────────────────────┐
+│  ❌ "It'll take 2 weeks"                                    │
+│     → Heard as: "It will be done in exactly 2 weeks"        │
+│                                                              │
+│  ✅ "Our best estimate is 2 weeks, with a range of          │
+│      1.5 to 3 weeks depending on [factors]"                 │
+│     → Sets realistic expectations                           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Communicating Delays
+
+```
+As soon as you know:
+"I want to flag a potential delay on [project].
+ 
+ Original timeline: March 15
+ Current projection: March 22-25
+ 
+ Cause: [specific reason]
+ 
+ What we're doing:
+ - [mitigation actions]
+ 
+ Options:
+ 1. Accept new date
+ 2. Reduce scope to hit original date
+ 
+ I recommend [X] because [reason]."
+```
+
+### Building Trust Through Transparency
+
+| Action | Trust Impact |
+|--------|--------------|
+| Deliver on commitments | High |
+| Proactively share bad news | High |
+| Admit when you don't know | Medium-High |
+| Give realistic estimates | Medium |
+| Over-promise, under-deliver | Severely Negative |
+
+---
+
+## Cross-Functional Alignment
+
+### RACI Matrix
+
+| Task | Responsible | Accountable | Consulted | Informed |
+|------|-------------|-------------|-----------|----------|
+| Feature spec | PM | PM | Eng, Design | Sales |
+| Technical design | Eng Lead | Eng Manager | PM | Design |
+| Launch decision | PM | Eng Manager | All | Execs |
+| Incident response | On-call | Eng Manager | PM | Execs |
+
+### Running Effective Meetings
+
+```
+Before Meeting:
+├── Clear agenda shared
+├── Right people invited
+├── Pre-read materials sent
+└── Decision-makers identified
+
+During Meeting:
+├── Start on time
+├── State purpose and desired outcome
+├── Facilitate discussion
+├── Capture decisions and actions
+└── End with clear next steps
+
+After Meeting:
+├── Send notes within 24 hours
+├── Follow up on action items
+└── Track progress
+```
+
+### Alignment Techniques
+
+| Technique | When to Use |
+|-----------|-------------|
+| **Working backwards** | Amazon-style, start with press release |
+| **Pre-mortem** | "What could go wrong?" |
+| **Decision doc** | Complex decisions needing input |
+| **DACI** | Clarifying who makes the call |
+| **Office hours** | Ongoing collaboration needs |
+
+---
+
+## Influence Without Authority
+
+### Building Influence
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Influence Currency                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Expertise:                                                  │
+│  - Be the go-to person for your domain                      │
+│  - Share knowledge freely                                   │
+│                                                              │
+│  Relationships:                                              │
+│  - Build genuine connections                                │
+│  - Help others succeed                                      │
+│                                                              │
+│  Track Record:                                               │
+│  - Deliver consistently                                     │
+│  - Follow through on commitments                            │
+│                                                              │
+│  Communication:                                              │
+│  - Listen actively                                          │
+│  - Articulate ideas clearly                                 │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Persuasion Strategies
+
+| Strategy | How to Use |
+|----------|------------|
+| **Data** | "The data shows X" |
+| **Social proof** | "Other teams have seen success with..." |
+| **Reciprocity** | Help them first, then ask |
+| **Common ground** | "We both want Y, here's how X helps" |
+| **Small wins** | Start with easy agreement, build |
+| **Visualization** | Help them see the end state |
+
+### Handling Disagreements
+
+```
+1. Seek to understand
+   "Help me understand your concern about X"
+
+2. Find common ground
+   "We both want [shared goal]. The question is how."
+
+3. Separate interests from positions
+   "What problem are you trying to solve?"
+
+4. Generate options together
+   "What if we tried...?"
+
+5. Agree on decision criteria
+   "What would need to be true for you to support this?"
+
+6. Escalate constructively if needed
+   "Let's bring this to [decision maker] with both perspectives"
+```
+
+---
+
+## Managing Up
+
+### What Your Manager Needs
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              What Your Manager Needs From You               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  No Surprises:                                               │
+│  - Proactive communication on risks                         │
+│  - Early warning on problems                                │
+│                                                              │
+│  Solutions, Not Just Problems:                               │
+│  - Come with options and recommendations                    │
+│  - Ask for help only when needed                            │
+│                                                              │
+│  Reliable Execution:                                         │
+│  - Do what you say you'll do                                │
+│  - Own outcomes, not just activities                        │
+│                                                              │
+│  Context Sharing:                                            │
+│  - What's happening on the ground                           │
+│  - Team morale and dynamics                                 │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 1:1 with Your Manager
+
+```
+Come prepared with:
+- Progress on key projects (concise)
+- Blockers that need their help
+- Decisions you need input on
+- What you're learning
+- Questions about context/strategy
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"Tell me about a time you had to influence without authority"**
+   - Use STAR format
+   - Show building relationships
+   - Demonstrate empathy for other perspectives
+   - Highlight the outcome
+
+2. **"How do you handle disagreements with your PM?"**
+   - Start with partnership mindset
+   - Seek to understand their goals
+   - Present options, not ultimatums
+   - Escalate constructively when needed
+
+3. **"How do you communicate with executives?"**
+   - Bottom line up front
+   - Business impact focus
+   - Clear asks
+   - Concise with details available
+
+### Stakeholder Management Checklist
+
+- [ ] Stakeholder map created?
+- [ ] Communication cadence established?
+- [ ] Expectations aligned?
+- [ ] Trust being built through transparency?
+- [ ] Conflicts addressed constructively?
+- [ ] Managing up effectively?
+- [ ] Cross-functional relationships strong?

@@ -1,16 +1,313 @@
 ---
 title: "Hiring"
-description: "Building effective interview processes."
+description: "Building effective interview processes, evaluating candidates, and making great engineering hires."
 ---
 
 # Hiring
 
-<ComingSoon 
-  expectedTopics={[
-    'Interview Design',
-    'Rubric Creation',
-    'Calibration Sessions',
-    'Candidate Experience',
-    'Closing Candidates'
-  ]} 
-/>
+Hiring is the highest-leverage activity for engineering leaders. A great hire multiplies team effectiveness; a bad hire drains it. This guide covers building effective interview processes and making high-quality hiring decisions.
+
+## Interview Process Design
+
+### End-to-End Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                   Hiring Funnel                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Sourcing ──▶ Screen ──▶ Phone ──▶ Onsite ──▶ Offer ──▶ Close│
+│                                                              │
+│  100        30         15        5         2         1      │
+│  candidates reviewed  screens   onsites   offers    hire    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Interview Loop Structure
+
+| Round | Duration | Focus | Interviewers |
+|-------|----------|-------|--------------|
+| **Recruiter Screen** | 30 min | Logistics, motivation, salary | Recruiter |
+| **Technical Screen** | 45-60 min | Coding fundamentals | Engineer |
+| **System Design** | 60 min | Architecture skills | Senior engineer |
+| **Coding Deep Dive** | 60 min | Problem-solving, code quality | Engineers (2) |
+| **Behavioral** | 45-60 min | Leadership, collaboration | Manager + cross-functional |
+| **Hiring Manager** | 45 min | Team fit, expectations, Q&A | Hiring manager |
+
+---
+
+## Defining the Hiring Bar
+
+### Level Expectations
+
+| Level | Technical | Scope | Independence |
+|-------|-----------|-------|--------------|
+| **Junior** | Fundamentals solid | Tasks | Guided |
+| **Mid** | Depth in area | Features | Some guidance |
+| **Senior** | Expert in domain | Projects | Self-directed |
+| **Staff** | Cross-domain expertise | Multiple teams | Drives direction |
+| **Principal** | Industry-level | Organization | Sets vision |
+
+### Core Competencies
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Engineering Competency Framework                │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Technical Skills:                                           │
+│  ├── Coding & Algorithms                                    │
+│  ├── System Design                                          │
+│  ├── Domain Expertise                                       │
+│  └── Technical Communication                                │
+│                                                              │
+│  Execution:                                                  │
+│  ├── Problem Decomposition                                  │
+│  ├── Delivery & Quality                                     │
+│  ├── Debugging & Investigation                              │
+│  └── Operational Excellence                                 │
+│                                                              │
+│  Collaboration:                                              │
+│  ├── Communication                                          │
+│  ├── Teamwork                                               │
+│  ├── Mentoring                                              │
+│  └── Cross-functional Partnership                           │
+│                                                              │
+│  Leadership:                                                 │
+│  ├── Technical Direction                                    │
+│  ├── Influence                                              │
+│  ├── Decision Making                                        │
+│  └── Growing Others                                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Interview Rubrics
+
+### Rating Scale
+
+| Score | Meaning | Action |
+|-------|---------|--------|
+| **1 - Strong No** | Significant concerns | Do not hire |
+| **2 - Lean No** | Below bar for level | Do not hire |
+| **3 - Lean Yes** | Meets bar, some gaps | Discuss in debrief |
+| **4 - Strong Yes** | Exceeds expectations | Hire |
+
+### Coding Interview Rubric
+
+| Dimension | Strong No (1) | Lean No (2) | Lean Yes (3) | Strong Yes (4) |
+|-----------|---------------|-------------|--------------|----------------|
+| **Problem Solving** | Couldn't make progress | Needed significant hints | Solved with minor hints | Solved independently |
+| **Code Quality** | Unreadable, many bugs | Some issues, incomplete | Clean, minor issues | Clean, well-structured |
+| **Communication** | Couldn't explain | Unclear explanations | Clear with prompting | Excellent, proactive |
+| **Testing** | No consideration | Basic cases only | Good coverage | Comprehensive edge cases |
+
+### System Design Rubric
+
+| Dimension | Strong No (1) | Lean No (2) | Lean Yes (3) | Strong Yes (4) |
+|-----------|---------------|-------------|--------------|----------------|
+| **Requirements** | Didn't clarify | Missed key points | Covered basics | Thorough, insightful |
+| **Architecture** | Fundamentally flawed | Major gaps | Sound, minor gaps | Excellent, scalable |
+| **Tradeoffs** | No awareness | Superficial | Good discussion | Deep analysis |
+| **Depth** | Surface only | Some depth | Good depth | Expert-level |
+
+### Behavioral Rubric (STAR)
+
+| Dimension | Strong No (1) | Lean No (2) | Lean Yes (3) | Strong Yes (4) |
+|-----------|---------------|-------------|--------------|----------------|
+| **Situation** | Vague, unclear | Basic context | Clear context | Rich detail |
+| **Task** | Role unclear | Some clarity | Clear ownership | Full accountability |
+| **Action** | Minimal action | Limited impact | Strong actions | Exceptional initiative |
+| **Result** | No outcome | Unclear impact | Positive outcome | Measurable impact |
+
+---
+
+## Interview Question Bank
+
+### Coding Questions (by level)
+
+| Level | Focus | Example Topics |
+|-------|-------|----------------|
+| Junior | Fundamentals | Arrays, strings, basic DS |
+| Mid | Application | Trees, graphs, recursion |
+| Senior | Optimization | System constraints, scalability |
+| Staff+ | Design + Code | API design, extensibility |
+
+### System Design Questions
+
+| Level | Question Type | Examples |
+|-------|--------------|----------|
+| **Mid/Senior** | Single system | URL shortener, rate limiter |
+| **Senior** | Complex system | Twitter feed, Uber matching |
+| **Staff+** | Platform/infra | Distributed cache, ML pipeline |
+
+### Behavioral Questions
+
+| Competency | Question |
+|------------|----------|
+| **Leadership** | Tell me about a time you led a project without formal authority |
+| **Conflict** | Describe a technical disagreement and how you resolved it |
+| **Failure** | Tell me about a project that didn't go as planned |
+| **Growth** | How have you grown in the past year? |
+| **Collaboration** | How do you work with PMs/designers? |
+
+---
+
+## Conducting Effective Interviews
+
+### Interview Structure
+
+```
+0-5 min:   Introduction, put candidate at ease
+5-10 min:  Set expectations for the interview
+10-50 min: Core interview content
+50-55 min: Candidate questions
+55-60 min: Wrap up, explain next steps
+```
+
+### Best Practices
+
+| Do | Don't |
+|-----|-------|
+| Put candidate at ease | Jump straight into questions |
+| Explain format upfront | Keep them guessing |
+| Give hints when stuck | Let them struggle silently |
+| Take notes in real-time | Rely on memory |
+| Evaluate against rubric | Compare to other candidates |
+| Focus on signal, not tricks | Use gotcha questions |
+
+### Bias Mitigation
+
+| Bias | Description | Mitigation |
+|------|-------------|------------|
+| **Halo effect** | One good trait colors all | Separate rubric dimensions |
+| **Similar-to-me** | Favor similar backgrounds | Structured questions |
+| **Recency** | Remember recent answers | Take notes throughout |
+| **Confirmation** | Seek confirming evidence | Look for disconfirming data |
+| **Anchoring** | First impression dominates | Score each dimension independently |
+
+---
+
+## Debrief and Decision Making
+
+### Debrief Structure
+
+```
+1. Independent Write-up (before meeting)
+   ├── Each interviewer writes feedback
+   ├── Assigns scores per dimension
+   └── Overall recommendation
+
+2. Debrief Meeting
+   ├── Round-robin: Each interviewer shares
+   ├── Focus on evidence, not conclusions
+   ├── Discuss discrepancies
+   └── Hiring manager makes final call
+
+3. Documentation
+   ├── Record decision and rationale
+   ├── Store for future reference
+   └── Feedback to recruiters
+```
+
+### Decision Framework
+
+```
+Strong Yes + Strong Yes = Likely Hire
+Strong Yes + Lean Yes = Likely Hire
+Lean Yes + Lean Yes = Discuss carefully
+Any Strong No = Usually No Hire
+Mixed signals = Dig deeper, may need additional interview
+```
+
+### Calibration
+
+| Activity | Frequency | Purpose |
+|----------|-----------|---------|
+| **Shadow interviews** | Ongoing | Train new interviewers |
+| **Calibration sessions** | Monthly | Align on bar |
+| **Interview review** | Quarterly | Improve questions |
+| **Hiring retrospective** | Quarterly | Review quality of hires |
+
+---
+
+## Closing Candidates
+
+### Sell Points (know your strengths)
+
+| Category | Examples |
+|----------|----------|
+| **Mission** | Impact, meaningful work |
+| **Technology** | Interesting problems, modern stack |
+| **Team** | Quality of people, culture |
+| **Growth** | Learning, career progression |
+| **Compensation** | Total package, equity upside |
+| **Work-Life** | Flexibility, balance |
+
+### Closing Conversation
+
+```
+1. Understand priorities
+   "What's most important to you in your next role?"
+
+2. Address concerns
+   "What questions or concerns do you have?"
+
+3. Share relevant stories
+   "Let me tell you about someone who joined in a similar situation..."
+
+4. Create urgency (honestly)
+   "We'd love to have your decision by [date] because..."
+
+5. Make the ask
+   "Based on our conversations, I think you'd be a great fit. 
+    Are you ready to join us?"
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Interview Questions (for you as a leader)
+
+1. **"How do you build an effective interview process?"**
+   - Define competencies and rubrics
+   - Train interviewers on bias
+   - Structure interviews consistently
+   - Calibrate regularly
+
+2. **"How do you raise the hiring bar?"**
+   - Clear level expectations
+   - Calibration sessions
+   - Data on hire quality
+   - Hold interviewers accountable
+
+3. **"Tell me about a difficult hiring decision"**
+   - Use STAR format
+   - Show data-driven approach
+   - Discuss tradeoffs explicitly
+   - Share outcome and learnings
+
+### Hiring Metrics
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| Time to hire | 30-45 days | Speed vs thoroughness |
+| Offer acceptance rate | 80%+ | Closing effectiveness |
+| Interview-to-offer | 4-5:1 | Process efficiency |
+| Quality of hire | 90%+ meet bar at 6mo | Ultimate measure |
+| Diversity | Improve YoY | Inclusive hiring |
+
+### Checklist
+
+- [ ] Job description clear and unbiased?
+- [ ] Interview loop covers all competencies?
+- [ ] Rubrics defined for each round?
+- [ ] Interviewers trained and calibrated?
+- [ ] Bias mitigation in place?
+- [ ] Debrief process structured?
+- [ ] Candidate experience positive?
+- [ ] Closing strategy prepared?
