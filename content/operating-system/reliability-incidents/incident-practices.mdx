@@ -1,0 +1,160 @@
+---
+title: Incident Practices That Actually Improve Reliability
+description: How to build incident practices that reduce future incidents, not just resolve current ones.
+---
+
+# Incident Practices That Actually Improve Reliability
+
+How to build incident practices that reduce future incidents, not just resolve current ones.
+
+## Goal
+
+Build incident practices that:
+- Minimize customer impact during incidents
+- Extract maximum learning from every incident
+- Drive systemic improvements (not just firefighting)
+- Maintain team health and avoid burnout
+
+## Scope
+
+**In scope:**
+- Incident detection and response
+- Severity classification
+- Postmortem process
+- Action item tracking and completion
+
+**Out of scope:**
+- On-call rotation design (see [Reliability & Incidents](/operating-system/reliability-incidents))
+- SLO definition (see [Metrics & Impact](/operating-system/metrics-impact))
+- Chaos engineering (see [Reliability & Incidents](/operating-system/reliability-incidents))
+
+## Principles
+
+1. **Blame-free, but not consequence-free** — People aren't blamed, but systemic issues must be fixed
+
+2. **Every incident is a gift** — Production incidents reveal gaps that testing cannot find
+
+3. **Action items have owners and deadlines** — No "we should" without "who" and "when"
+
+## How it Works
+
+### Phase 1: Detection & Declaration (0-5 minutes)
+
+1. Automated alert or human observation identifies issue
+2. On-call acknowledges and assesses severity
+3. If Sev1/Sev2, declare incident in #incidents channel
+4. Incident commander assigned (may be different from on-call)
+
+**Severity definitions:**
+| Severity | Impact | Response |
+|----------|--------|----------|
+| Sev1 | Customer-facing outage | All-hands, immediate |
+| Sev2 | Significant degradation | Core team, within 15 min |
+| Sev3 | Minor impact | On-call, within 1 hour |
+| Sev4 | No immediate impact | Next business day |
+
+### Phase 2: Response (Duration of incident)
+
+**Roles:**
+- **Incident Commander (IC)**: Coordinates response, not hands-on-keyboard
+- **Technical Lead**: Drives investigation and remediation
+- **Communications**: Updates stakeholders (internal and external)
+- **Scribe**: Documents timeline and decisions
+
+**IC responsibilities:**
+- Maintain shared understanding of current state
+- Assign tasks and track progress
+- Make decisions when team is stuck
+- Escalate when needed
+
+### Phase 3: Resolution & Stabilization (1-24 hours post-incident)
+
+1. Confirm customer impact resolved
+2. Implement temporary mitigations if needed
+3. Monitor for recurrence
+4. Schedule postmortem (within 48 hours for Sev1/2)
+
+### Phase 4: Postmortem (Within 1 week)
+
+**Postmortem document structure:**
+1. **Summary**: What happened in 2-3 sentences
+2. **Timeline**: Minute-by-minute reconstruction
+3. **Impact**: Customer and business impact, quantified
+4. **Root cause**: Contributing factors (usually multiple)
+5. **What went well**: What helped resolve faster
+6. **What could improve**: Process gaps
+7. **Action items**: Specific, assigned, deadlined
+
+**Postmortem meeting:**
+- Review document (shared in advance)
+- Focus on systemic improvements
+- Assign action item owners
+- Schedule follow-up for action item review
+
+### Phase 5: Follow-through (Ongoing)
+
+1. Action items tracked in central system
+2. Weekly review of open items
+3. Monthly report on incident trends
+4. Quarterly review of systemic patterns
+
+## Rituals & Cadence
+
+| Ritual | Frequency | Duration | Participants |
+|--------|-----------|----------|--------------|
+| Postmortem meeting | After Sev1/2 | 60 min | Involved engineers + leadership |
+| Action item review | Weekly | 30 min | Tech leads |
+| Incident trends review | Monthly | 30 min | Engineering leadership |
+| On-call retrospective | Quarterly | 60 min | All on-call participants |
+
+## Artifacts
+
+- **Incident template**: Standard format for incident channels
+- **Postmortem template**: Structured document format
+- **Action item tracker**: Central board with owners and deadlines
+- **Incident dashboard**: Real-time and historical incident metrics
+
+## Metrics
+
+| Metric | Target | Warning | Critical |
+|--------|--------|---------|----------|
+| Time to detect (TTD) | Under 5 min | Under 15 min | Over 30 min |
+| Time to mitigate (TTM) | Under 30 min | Under 1 hour | Over 2 hours |
+| Postmortem completion rate | 100% (Sev1/2) | 90% | 75% |
+| Action item completion rate | 80% within 30 days | 60% | 40% |
+| Repeat incidents (same root cause) | Under 10% | Under 20% | Over 20% |
+
+## Guardrails
+
+- **No postmortem, no close** — Sev1/2 incidents stay open until postmortem is complete
+- **Action items have deadlines** — No unbounded "we should" items
+- **Monthly action item review** — Stale items escalated to leadership
+- **Blameless but honest** — Name contributing factors, even if uncomfortable
+
+## Incident Handling
+
+**Signs of breakdown:**
+- Postmortems become perfunctory
+- Action items pile up without completion
+- Same root causes repeat
+- Team dreads on-call
+
+**Response:**
+1. Leadership review of recent incidents
+2. Prioritize completing action items over new features
+3. Address on-call burden (rotation size, tooling, processes)
+4. Celebrate improvements, not just fire-fighting
+
+## Common Failure Modes
+
+1. **Postmortem theater**: Documents written but not read, meetings held but changes not made. Fixed by tracking repeat incident rate and action item completion.
+
+2. **Action item graveyard**: Items assigned but never completed. Fixed by weekly review, deadline enforcement, and linking to sprint planning.
+
+3. **Blame avoidance**: Postmortems avoid naming contributing factors to protect individuals. Fixed by emphasizing systemic factors and leadership modeling blame-free language.
+
+## Change Management
+
+- **Feedback loop**: Quarterly on-call retrospective
+- **Review cadence**: Semi-annual review of incident process
+- **Change process**: Process changes proposed as action items from incidents

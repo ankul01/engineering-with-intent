@@ -1,0 +1,95 @@
+---
+title: Cache Invalidation Under Compliance Constraints
+description: How to design cache invalidation when GDPR right-to-erasure and audit requirements conflict with performance goals.
+---
+
+# Cache Invalidation Under Compliance Constraints
+
+How to design cache invalidation when GDPR right-to-erasure and audit requirements conflict with performance goals.
+
+## Context
+
+A B2B SaaS platform serving European customers needed to implement GDPR Article 17 (right to erasure) compliance. The system used multi-tier caching (CDN, Redis, application-level) to achieve sub-50ms response times. When a user requested data deletion, cached copies had to be invalidated within a defined SLA while maintaining audit trails.
+
+**Business context:**
+- 50M+ user records across 500+ tenants
+- P99 latency requirement: 50ms
+- GDPR deletion requests: ~1000/day
+- Annual compliance audit requiring proof of deletion
+
+## Constraints
+
+| Constraint | Impact |
+|------------|--------|
+| GDPR compliance | Must delete user data from all caches within 72 hours |
+| Audit trail | Must prove deletion occurred, but can't log the deleted data |
+| Performance | Cannot degrade P99 beyond 50ms |
+| Multi-region | Data cached in 3 regions (EU, US, APAC) |
+| Budget | No additional infrastructure budget |
+
+## Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| TTL-based expiry (short TTLs) | Simple, no coordination | Poor cache hit rates, higher latency |
+| Event-driven invalidation | Precise, auditable | Complex, requires message ordering |
+| Versioned keys | No explicit invalidation needed | Storage overhead, key explosion |
+| Hybrid (TTL + targeted invalidation) | Balanced approach | Medium complexity |
+
+## Decision
+
+We chose **event-driven invalidation with TTL backstop**:
+
+1. Deletion requests publish to a Kafka topic with exactly-once semantics
+2. Regional cache invalidators consume and invalidate synchronously
+3. Invalidation receipts written to immutable audit log (no PII, only hash + timestamp)
+4. 24-hour TTL on all user-specific cache entries as backstop
+
+**Why this approach:**
+- Meets the 72-hour deletion SLA with margin
+- Audit log provides compliance evidence without storing PII
+- TTL backstop handles edge cases (missed events, new cache nodes)
+
+## Trade-offs Accepted
+
+- **Complexity**: Event-driven invalidation requires operational investment in Kafka reliability
+- **Latency spike risk**: Invalidation storm during bulk deletions could cause cache misses
+- **Audit log storage**: Keeping 7-year audit trail adds ~10TB/year storage cost
+
+## Second-order Effects
+
+- **Positive**: The invalidation infrastructure enabled feature flag rollouts using the same pattern
+- **Unexpected**: Audit requirements led to standardizing event schemas across all services
+- **Cost**: Kafka operational overhead was higher than estimated (needed dedicated SRE)
+
+## Failure Modes
+
+| Failure Mode | Likelihood | Impact | Mitigation |
+|--------------|------------|--------|------------|
+| Kafka consumer lag | Medium | Delayed invalidation | Alert on lag > 1 hour, auto-scale consumers |
+| Regional network partition | Low | Stale cache in one region | TTL backstop ensures eventual invalidation |
+| Audit log corruption | Very Low | Compliance risk | Immutable storage, cross-region replication |
+| Invalidation storm | Low | Latency spike | Rate limit bulk deletions, circuit breaker |
+
+## Observability & SLOs
+
+- **SLI**: Time from deletion request to cache invalidation confirmation
+- **SLO**: 99% of deletions completed within 4 hours
+- **Dashboard**: Deletion latency percentiles, consumer lag, audit log write rate
+- **Alerts**: Consumer lag > 1 hour, invalidation failures > 0.1%
+
+## Common Failure Modes
+
+1. **Forgetting the CDN**: Application caches were invalidated, but CDN continued serving stale content. Required explicit CDN purge API integration.
+
+2. **Audit log PII leakage**: Initial implementation logged the deletion payload. Fixed by logging only request ID + user ID hash + timestamp.
+
+3. **Cache warming race**: New cache nodes populated from database before invalidation event processed. Fixed by checking deletion status on cache miss.
+
+## When to Revisit
+
+Revisit if:
+- Deletion request volume grows 10x (consider batch invalidation)
+- Adding new cache tier (must integrate with invalidation pipeline)
+- Compliance requirements change (e.g., shorter deletion window)
+- After 12 months to assess operational burden

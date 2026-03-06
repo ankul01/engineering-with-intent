@@ -1,0 +1,169 @@
+---
+title: "Design Reviews That End with Decisions (ADR-Based)"
+description: "A playbook for running design reviews that produce documented decisions, not endless discussion"
+category: "design-reviews"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Design Reviews That End with Decisions (ADR-Based)
+
+How to run design reviews that produce clear, documented decisions instead of endless discussion cycles.
+
+## Goal
+
+Every design review ends with one of three outcomes:
+1. **Approved**: Decision documented, team can proceed
+2. **Rejected**: Clear reasons documented, alternative path identified
+3. **Needs revision**: Specific gaps identified, next review scheduled
+
+No design review ends with "let's discuss more" without a concrete next step.
+
+## Scope
+
+**In scope:**
+- Technical design decisions requiring cross-team input
+- Architecture changes affecting multiple services
+- New technology adoption proposals
+- Significant refactoring efforts
+
+**Not in scope:**
+- Day-to-day implementation choices within a team
+- Bug fixes and small enhancements
+- Decisions already made and documented
+
+## Principles
+
+1. **Decisions are first-class artifacts**: Every decision gets an ADR, even if it's "we decided not to do this"
+2. **Time-boxed discussion**: 45 minutes max; if not resolvable, it needs more async work first
+3. **Pre-read required**: Attendees must read the proposal before the meeting
+4. **Disagree and commit**: Once decided, we execute; dissent is documented, not relitigated
+5. **Reversibility awareness**: Document whether this decision is one-way or two-way door
+
+## Rituals & Cadence
+
+| Ritual | Frequency | Duration | Participants |
+|--------|-----------|----------|--------------|
+| Design Review | As needed | 45 min | Author, reviewers (2-4), facilitator |
+| ADR Review | Weekly | 30 min | Architecture guild, async-first |
+| Decision Retrospective | Quarterly | 60 min | Tech leads, review 3-5 past ADRs |
+
+### Design Review Flow
+
+**Before the meeting (async):**
+1. Author writes ADR draft (Context, Options, Recommendation)
+2. Author requests review 48h before meeting
+3. Reviewers add comments/questions async
+4. Author addresses async feedback
+
+**During the meeting (45 min):**
+- 0-5 min: Context check (does everyone understand the problem?)
+- 5-15 min: Walk through options and trade-offs
+- 15-35 min: Discussion of concerns and alternatives
+- 35-45 min: Decision time (vote if needed, facilitator calls it)
+
+**After the meeting:**
+1. Author updates ADR with decision and rationale
+2. ADR merged to repo within 24h
+3. Slack notification to relevant channels
+
+## Artifacts
+
+### ADR Template
+
+```markdown
+# ADR-NNN: [Title]
+
+## Status
+[Proposed | Accepted | Deprecated | Superseded by ADR-XXX]
+
+## Context
+[What is the issue that we're seeing that is motivating this decision?]
+
+## Decision
+[What is the change that we're proposing and/or doing?]
+
+## Consequences
+[What becomes easier? What becomes harder?]
+
+## Options Considered
+[Brief summary of alternatives and why they were rejected]
+```
+
+### Pre-Read Checklist
+- [ ] Problem statement is clear
+- [ ] At least 2 options considered
+- [ ] Trade-offs explicitly stated
+- [ ] Recommendation stated with rationale
+- [ ] Reversibility assessed
+
+### Decision Log
+Maintain a living index of ADRs:
+- By status (active, deprecated, superseded)
+- By domain (data, infrastructure, API, etc.)
+- By date (most recent first)
+
+## Metrics
+
+| Metric | Target | Why |
+|--------|--------|-----|
+| Time from proposal to decision | < 2 weeks | Prevent decision debt |
+| ADR completion rate | 100% | Every review produces documentation |
+| Pre-read compliance | > 80% | Meetings are productive |
+| Decision reversal rate | < 10% | Decisions are well-considered |
+| Meeting overrun rate | < 20% | Time discipline maintained |
+
+## Guardrails
+
+1. **No meeting without ADR draft**: Reject review requests without written proposal
+2. **No meeting without pre-read time**: Minimum 48h between proposal and meeting
+3. **No decision without quorum**: Define required attendees (e.g., domain owner, SRE rep)
+4. **No ADR without consequences**: Must document what changes
+
+**Anti-patterns to avoid:**
+- "Architecture by committee" — reviewer count > 5
+- "Bike-shedding" — time spent inversely proportional to importance
+- "Decision paralysis" — requiring 100% consensus
+- "Shadow decisions" — decisions made outside the process
+
+## Incident Handling
+
+**When the process fails:**
+
+| Scenario | Response |
+|----------|----------|
+| Decision made without ADR | Retroactively document; review process with team |
+| Review takes > 3 meetings | Escalate to engineering leadership; scope issue |
+| Reviewers don't pre-read | Cancel meeting; require async feedback first |
+| Decision frequently reversed | Review decision quality; improve options analysis |
+
+## Migration / Change Management
+
+**Adopting this process in an existing team:**
+
+**Week 1-2:**
+- Introduce ADR template
+- Document 2-3 recent decisions retroactively
+- Share examples of good ADRs
+
+**Week 3-4:**
+- Run first formal design review with new process
+- Facilitator guides format strictly
+- Retrospective on what worked
+
+**Week 5-8:**
+- Team runs reviews independently
+- Check-in: are meetings ending with decisions?
+- Iterate on template and process
+
+**Common adoption challenges:**
+- "We don't have time for documentation" → Show time saved from avoided re-discussion
+- "This is too formal for our team" → Start lightweight; add structure as needed
+- "Decisions keep getting overturned" → Review decision quality, not process
+
+---
+
+## Related Pages
+
+- [Templates: Decision Template](/templates/decision-template)
+- [Frameworks: Decision Trees](/frameworks/decision-trees)

@@ -1,0 +1,129 @@
+---
+title: Design Reviews That End with Decisions
+description: How to run design reviews that produce clear decisions instead of endless discussions.
+---
+
+# Design Reviews That End with Decisions
+
+How to run design reviews that produce clear decisions instead of endless discussions.
+
+## Goal
+
+Transform design reviews from open-ended discussions into focused sessions that:
+- Produce explicit, documented decisions
+- Surface disagreements early and resolve them
+- Build shared understanding across the team
+- Create artifacts that help future team members
+
+## Scope
+
+**In scope:**
+- Design review meeting format and facilitation
+- Decision documentation (ADRs)
+- Async review processes
+- Handling disagreements
+
+**Out of scope:**
+- Design doc writing (separate skill)
+- Architecture governance (broader process)
+- Code review (different purpose)
+
+## Principles
+
+1. **Decisions over discussions** — Every review should end with explicit decisions or explicit next steps
+
+2. **Disagree in the room, commit outside** — Surface all objections during the review, then commit to the decision
+
+3. **Written artifacts required** — No meeting without a design doc; no decision without an ADR
+
+## How it Works
+
+### Phase 1: Pre-Review (Async, 2-3 days before)
+
+1. Author shares design doc with reviewers
+2. Reviewers add comments async (questions, concerns, alternatives)
+3. Author responds to comments, updates doc as needed
+4. Facilitator identifies contentious topics for synchronous discussion
+
+**Critical**: Reviewers who don't read the doc beforehand don't get to object in the meeting
+
+### Phase 2: Review Meeting (60 min max)
+
+**Structure:**
+- **5 min**: Context (author summarizes; attendees should already know this)
+- **10 min**: Clarifying questions (not opinions)
+- **30 min**: Discussion of contentious topics (identified pre-review)
+- **10 min**: Decision and action items
+- **5 min**: ADR draft
+
+**Facilitation rules:**
+- Time-box each topic
+- If no resolution in 10 min, escalate or defer
+- No new topics introduced (should be in pre-review comments)
+- Capture decisions in real-time
+
+### Phase 3: Post-Review (Within 24 hours)
+
+1. Author finalizes ADR with decisions made
+2. Action items assigned and tracked
+3. Design doc updated to reflect decisions
+4. ADR shared with broader team
+
+## Rituals & Cadence
+
+| Ritual | Frequency | Duration | Participants |
+|--------|-----------|----------|--------------|
+| Design review | As needed | 60 min max | Author + 3-5 reviewers |
+| ADR review | Weekly | 30 min | Tech leads |
+| Design review retro | Monthly | 30 min | All reviewers |
+
+## Artifacts
+
+- **Design doc template**: Standardized format for proposals
+- **ADR template**: Lightweight decision record (see [Decision Template](/templates/decision-template))
+- **Review checklist**: What reviewers should evaluate
+- **Decision log**: Central repository of all ADRs
+
+## Metrics
+
+| Metric | Target | Warning | Critical |
+|--------|--------|---------|----------|
+| Reviews ending with decision | 90% | 75% | 50% |
+| Time from doc share to decision | Under 1 week | Under 2 weeks | Over 2 weeks |
+| ADR completion rate | 100% | 90% | 75% |
+| Reviewer attendance | 80% | 60% | 40% |
+
+## Guardrails
+
+- **No drive-by objections** — If you didn't comment async, you don't get to block
+- **No design-by-committee** — Author owns the decision, reviewers advise
+- **No re-litigation** — Once decided (and ADR written), don't reopen without new information
+- **No meeting without doc** — Cancel reviews where doc wasn't shared 2 days ahead
+
+## Incident Handling
+
+**Signs of breakdown:**
+- Reviews consistently run over time
+- Decisions get relitigated in subsequent meetings
+- ADRs not being written or not being used
+- Senior engineers skip reviews
+
+**Response:**
+1. Retrospective on what's not working
+2. Reinforce pre-review async expectations
+3. Consider splitting large reviews into smaller decisions
+4. Escalate persistent blockers to engineering leadership
+
+## Common Failure Modes
+
+1. **Design doc as spec, not proposal**: Document presented as final, no room for input. Fixed by requiring "Options Considered" section with pros/cons.
+
+2. **HiPPO effect**: Highest-paid person's opinion dominates. Fixed by having seniors speak last, requiring written objections.
+
+3. **Scope creep**: Review expands to redesign the whole system. Fixed by explicit scope statement and facilitator enforcement.
+
+## Change Management
+
+- **Feedback loop**: Monthly retro on review effectiveness
+- **Review cadence**: Quarterly review of process, templates, and participation
+- **Change process**: Process changes proposed in a design review (practice what you preach)

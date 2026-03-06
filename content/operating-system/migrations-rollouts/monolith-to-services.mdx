@@ -1,0 +1,144 @@
+---
+title: "Migration Playbook: Monolith to Services Without Breaking Customers"
+description: How to safely migrate from monolith to services without disrupting customers or accumulating technical debt.
+---
+
+# Migration Playbook: Monolith to Services Without Breaking Customers
+
+How to safely migrate from monolith to services without disrupting customers or accumulating technical debt.
+
+## Goal
+
+Incrementally extract services from a monolith while:
+- Maintaining 99.9% availability throughout migration
+- Avoiding "big bang" cutover risk
+- Not accumulating permanent migration scaffolding
+- Delivering customer value during the migration (not just after)
+
+## Scope
+
+**In scope:**
+- Service extraction strategy and sequencing
+- Traffic migration patterns (strangler, parallel run)
+- Data migration and synchronization
+- Rollback procedures
+
+**Out of scope:**
+- Greenfield microservices design (see [Architecture Patterns](/decisions/architecture-patterns))
+- Kubernetes/infrastructure migration (separate concern)
+- Team reorganization (organizational change management)
+
+## Principles
+
+1. **Migrate by capability, not by code** — Extract business capabilities that can stand alone, not arbitrary code boundaries
+
+2. **Parallel run everything** — New service runs alongside old code, with comparison, before cutover
+
+3. **Reversibility over speed** — Every migration step must be reversible within minutes
+
+## How it Works
+
+### Phase 1: Identify Seams (2-4 weeks)
+
+1. Map the monolith's domain boundaries using code analysis and team knowledge
+2. Identify natural seams where data access is relatively contained
+3. Rank candidates by: business value, risk, dependency complexity
+4. Select first extraction target (prefer low-risk, high-value)
+
+**Deliverable:** Migration sequencing document with rationale
+
+### Phase 2: Build the Strangler (2-6 weeks per service)
+
+1. Deploy new service alongside monolith
+2. Implement feature parity for the target capability
+3. Add routing layer (feature flag or API gateway) to direct traffic
+4. Implement dual-write for data changes (monolith → new service)
+
+**Deliverable:** New service running in production, receiving shadow traffic
+
+### Phase 3: Parallel Run (1-4 weeks)
+
+1. Send production traffic to both monolith and new service
+2. Compare responses (log differences, don't affect users)
+3. Fix discrepancies until comparison passes at 99.9%+ match rate
+4. Build confidence through sustained parallel operation
+
+**Deliverable:** Parallel run report showing match rates and discrepancy analysis
+
+### Phase 4: Cutover (1 day - 1 week)
+
+1. Gradually shift read traffic to new service (1% → 10% → 50% → 100%)
+2. Monitor error rates, latency, and business metrics at each stage
+3. Once reads are stable, shift write traffic similarly
+4. Keep monolith code running but inactive for rollback period
+
+**Deliverable:** Traffic fully on new service, monolith code dormant
+
+### Phase 5: Cleanup (1-2 weeks)
+
+1. Remove dead code from monolith
+2. Remove dual-write scaffolding
+3. Update documentation and runbooks
+4. Archive parallel run infrastructure
+
+**Deliverable:** Clean codebase, no migration scaffolding remaining
+
+## Rituals & Cadence
+
+| Ritual | Frequency | Duration | Participants |
+|--------|-----------|----------|--------------|
+| Migration standup | Daily | 15 min | Migration team |
+| Parallel run review | Daily during Phase 3 | 30 min | Tech lead + SRE |
+| Traffic shift decision | As needed | 30 min | Tech lead + Product |
+| Migration retrospective | After each service | 1 hour | Full team |
+
+## Artifacts
+
+- **Migration tracker**: Spreadsheet/board showing all services, status, and blockers
+- **Parallel run dashboard**: Real-time comparison of monolith vs new service responses
+- **Rollback runbook**: Step-by-step procedure to revert to monolith
+- **Migration ADR**: Decision record for each extracted service
+
+## Metrics
+
+| Metric | Target | Warning | Critical |
+|--------|--------|---------|----------|
+| Availability during migration | 99.9% | 99.5% | 99% |
+| Parallel run match rate | 99.9% | 99% | 95% |
+| Rollback time | Under 5 min | Under 15 min | Under 30 min |
+| Migration scaffolding age | Under 30 days | Under 60 days | Under 90 days |
+
+## Guardrails
+
+- **Never cut over without parallel run** — No exceptions, even for "simple" changes
+- **Feature freeze during cutover** — No other changes to the affected code path
+- **Rollback tested before cutover** — Actually execute rollback in staging
+- **Business metrics monitoring** — Not just technical metrics (revenue, conversion, etc.)
+
+## Incident Handling
+
+**Signs of breakdown:**
+- Parallel run match rate dropping
+- Error rate spike after traffic shift
+- Customer complaints during migration
+- Team overwhelmed by migration + BAU work
+
+**Response:**
+1. Pause traffic shift or roll back immediately
+2. Root cause the discrepancy or error
+3. Fix in new service (never patch monolith to match new bugs)
+4. Re-run parallel comparison before proceeding
+
+## Common Failure Modes
+
+1. **Data synchronization lag**: Dual-write had eventual consistency, causing parallel run mismatches. Fixed by synchronous dual-write or accepting comparison window.
+
+2. **Hidden dependencies**: Extracted service depended on monolith state not captured in the API. Fixed by more thorough seam analysis.
+
+3. **Migration fatigue**: Team burned out on long migration, started cutting corners. Fixed by celebrating milestones and rotating team members.
+
+## Change Management
+
+- **Feedback loop**: Weekly migration retrospective, monthly stakeholder update
+- **Review cadence**: Quarterly review of migration strategy and sequencing
+- **Change process**: Major sequencing changes require tech lead + product approval

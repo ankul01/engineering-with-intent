@@ -1,120 +1,94 @@
 ---
-title: Home
+title: Engineering with Intent
 ---
 
-# Leadership Learning
+# Engineering with Intent
 
-Interview preparation repository for senior engineering and engineering leadership roles.
-
-## Content Overview
-
-<TopicGrid>
-  <TopicCard
-    title="System Design"
-    description="High-level and low-level design problems, scalability patterns, and real-world architectures."
-    href="/system-design"
-    status="in-progress"
-    topics={['HLD', 'LLD', 'Scalability', 'Databases']}
-  />
-  <TopicCard
-    title="Architecture Deep Dive"
-    description="Networking fundamentals, reliability patterns, security deep dives."
-    href="/architecture-deep-dive"
-    status="in-progress"
-    topics={['DNS', 'CDN', 'Networking']}
-  />
-  <TopicCard
-    title="Behavioral"
-    description="Structured stories and frameworks for behavioral interview rounds."
-    href="/behavioral"
-    status="in-progress"
-    topics={['Leadership', 'STAR Method', 'Conflict Resolution']}
-  />
-  <TopicCard
-    title="Coding"
-    description="DSA patterns, problem-solving frameworks, and coding best practices."
-    href="/coding"
-    status="planned"
-    topics={['Arrays', 'Trees', 'Graphs', 'DP']}
-  />
-  <TopicCard
-    title="Frameworks"
-    description="Decision-making frameworks, tradeoff matrices, and structured approaches."
-    href="/frameworks"
-    status="in-progress"
-    topics={['STAR', 'Decision Trees', 'Root Cause']}
-  />
-  <TopicCard
-    title="Engineering Leadership"
-    description="Hiring, performance management, stakeholder alignment, team building."
-    href="/engineering-leadership"
-    status="complete"
-    topics={['Hiring', 'Performance', 'Strategy']}
-  />
-</TopicGrid>
-
-## Quick Access
-
-<TopicGrid>
-  <TopicCard
-    title="Company Specific"
-    description="Preparation guides tailored for specific companies."
-    href="/company-specific"
-    status="planned"
-    topics={['FAANG', 'Startups']}
-  />
-  <TopicCard
-    title="Quick Revision"
-    description="Condensed notes and cheat sheets for final prep."
-    href="/quick-revision"
-    status="planned"
-    topics={['Cheatsheets', 'Final Week']}
-  />
-  <TopicCard
-    title="Metrics & Impact"
-    description="Business metrics, engineering KPIs, and impact quantification."
-    href="/metrics-and-impact"
-    status="planned"
-    topics={['ROI', 'KPIs', 'Business Impact']}
-  />
-  <TopicCard
-    title="Mock Interviews"
-    description="Question bank, feedback logs, and improvement tracking."
-    href="/mock-interviews"
-    status="planned"
-    topics={['Questions', 'Feedback']}
-  />
-</TopicGrid>
-
-## Focus Areas
-
-- **Platform Thinking** – Building scalable, maintainable systems
-- **Scalability** – Designing for growth and high availability
-- **Risk & Compliance** – Security, data governance, regulatory requirements
-- **Stakeholder Alignment** – Communication, influence, and collaboration
-- **Execution Excellence** – Delivery, prioritization, and trade-offs
-- **Business Impact** – Metrics-driven decision making
-
-## Preparation Strategy
-
-- **Behavioral depth over breadth** – Deep stories with measurable impact
-- **System design with tradeoffs** – Not just solutions, but reasoning
-- **Engineering leadership narratives** – Hiring, performance, conflict resolution
-- **Metrics-first storytelling** – Numbers that demonstrate business impact
+Architecture decisions and operating practices that hold up in production.
 
 ---
 
-<div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-  <div className="flex items-center gap-3 mb-3">
-    <span className="text-2xl">📊</span>
-    <h3 className="font-semibold m-0">Content Status Legend</h3>
+Real systems face real constraints: compliance requirements, legacy dependencies, team capacity, and business timelines. This site documents how to make defensible decisions, operate sustainable systems, and lead technical execution with clarity.
+
+No interview framing. No generic definitions. Just decisions and why.
+
+## What You'll Learn Here
+
+- **How to make architecture decisions under real constraints** — cost, compliance, latency, time, team structure
+- **How to operate, migrate, and sustain systems** after the whiteboard is erased
+- **How to lead technical execution with clarity** — not just diagrams
+
+## Who This Is For
+
+- **Staff engineers** navigating ambiguity and cross-team decisions
+- **Tech leads** owning architecture and delivery end-to-end
+- **Engineering managers** bridging technical depth with execution discipline
+
+---
+
+## Content Pillars
+
+<div className="grid md:grid-cols-2 gap-6 mt-8">
+  <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors">
+    <h3 className="text-xl font-semibold mb-3">Decisions Under Constraints</h3>
+    <p className="text-gray-600 dark:text-gray-400 mb-4">
+      How to make and defend architecture choices under real-world constraints: cost, compliance, latency, team topology, and time.
+    </p>
+    <div className="flex flex-wrap gap-2 mb-4">
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">System Design</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Data & Storage</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Architecture Patterns</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Case Studies</span>
+    </div>
+    <a href="/decisions" className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+      Explore Decisions →
+    </a>
   </div>
-  <div className="flex flex-wrap gap-4">
-    <StatusBadge status="complete" />
-    <span className="text-sm text-gray-600 dark:text-gray-400">Ready for review</span>
-    <StatusBadge status="in-progress" />
-    <span className="text-sm text-gray-600 dark:text-gray-400">Being actively developed</span>
-    <StatusBadge status="planned" />
-    <span className="text-sm text-gray-600 dark:text-gray-400">On the roadmap</span>
+  
+  <div className="p-6 border border-gray-200 dark:border-gray-800 rounded-lg hover:border-green-500 dark:hover:border-green-400 transition-colors">
+    <h3 className="text-xl font-semibold mb-3">Engineering Operating System</h3>
+    <p className="text-gray-600 dark:text-gray-400 mb-4">
+      How teams deliver, operate, migrate, and sustain systems over time. Repeatable practices that scale.
+    </p>
+    <div className="flex flex-wrap gap-2 mb-4">
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Delivery</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Reliability</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Migrations</span>
+      <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-800 rounded">Metrics</span>
+    </div>
+    <a href="/operating-system" className="text-green-600 dark:text-green-400 font-medium hover:underline">
+      Explore Operating System →
+    </a>
   </div>
 </div>
+
+---
+
+## Supporting Content
+
+<div className="grid md:grid-cols-3 gap-4 mt-6">
+  <a href="/leadership" className="p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors block">
+    <h4 className="font-semibold mb-2">Leadership</h4>
+    <p className="text-sm text-gray-600 dark:text-gray-400">Design reviews, stakeholder alignment, hiring, and performance management.</p>
+  </a>
+  
+  <a href="/frameworks" className="p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors block">
+    <h4 className="font-semibold mb-2">Frameworks & Tools</h4>
+    <p className="text-sm text-gray-600 dark:text-gray-400">STAR method, decision trees, root cause analysis, tradeoff matrices.</p>
+  </a>
+  
+  <a href="/reference" className="p-4 border border-gray-200 dark:border-gray-800 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors block">
+    <h4 className="font-semibold mb-2">Quick Reference</h4>
+    <p className="text-sm text-gray-600 dark:text-gray-400">Cheat sheets, system design summaries, and revision notes.</p>
+  </a>
+</div>
+
+---
+
+## How to Use This Site
+
+**For a specific decision:** Browse [Decisions Under Constraints](/decisions), find a similar decision or use a template, adapt the constraints and options to your context.
+
+**For team practices:** Explore [Engineering Operating System](/operating-system), pick one playbook to adopt first, iterate based on team feedback.
+
+**For quick reference:** Check [Frameworks & Tools](/frameworks) for structured thinking approaches, or [Quick Reference](/reference) for summaries and cheat sheets.

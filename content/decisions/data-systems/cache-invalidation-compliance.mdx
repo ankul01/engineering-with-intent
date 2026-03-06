@@ -1,0 +1,132 @@
+---
+title: "Cache Invalidation Under Compliance Constraints"
+description: "Designing cache invalidation strategies when GDPR right-to-deletion and PCI-DSS requirements constrain your options"
+category: "data-systems"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Cache Invalidation Under Compliance Constraints
+
+How to design cache invalidation when regulations like GDPR and PCI-DSS require you to prove data can be deleted within specific timeframes.
+
+## Context
+
+Caching is essential for performance, but introduces a fundamental tension with compliance requirements:
+
+- **GDPR Article 17** requires deletion "without undue delay" (typically interpreted as 30 days max)
+- **PCI-DSS** prohibits caching of certain cardholder data entirely
+- **Right to be forgotten** requests need audit trails proving deletion across all systems
+
+Most caching tutorials assume you can cache anything. Real systems can't.
+
+## Constraints
+
+- **Compliance**: GDPR deletion requests must be honored within 30 days with audit proof
+- **Timeline**: Existing caching infrastructure has 6 months of organic growth; can't rebuild from scratch
+- **Team**: No dedicated compliance engineering team; security reviews take 2-3 weeks
+- **Dependencies**: Redis cluster shared across 12 services; CDN with 24-hour TTL default
+- **Budget**: Cannot add new infrastructure; must work with existing Redis and CDN
+
+## Options Considered
+
+| Option | Pros | Cons | Effort |
+|--------|------|------|--------|
+| **A: Short TTLs everywhere** | Simple, compliant by default | Performance hit, cache hit rate drops 40% | Low |
+| **B: PII-aware cache keys** | Surgical invalidation, maintains performance | Requires key inventory, migration effort | Medium |
+| **C: Event-driven invalidation** | Real-time deletion, audit-friendly | New infrastructure, eventual consistency edge cases | High |
+| **D: Tiered caching with PII exclusion** | Clear separation, easy to audit | Requires data classification, some content uncacheable | Medium |
+
+## Decision
+
+**Option D: Tiered caching with PII exclusion**, combined with **Option B** for cases where PII must be cached.
+
+We classify data into three tiers:
+1. **Never cache**: PII, payment data, session tokens
+2. **Short TTL (5 min)**: User preferences, personalization data
+3. **Long TTL (24h)**: Static content, product catalog, public data
+
+For unavoidable PII caching (e.g., user display names in feeds), we use composite cache keys that include a user-specific version number, allowing instant invalidation by incrementing the version.
+
+## Trade-offs Accepted
+
+- **Increased complexity**: Cache key management requires new conventions and enforcement
+- **Performance hit on personalized content**: 5-minute TTL vs. previous 1-hour TTL
+- **Operational overhead**: Monthly cache key audits required
+
+These are acceptable because compliance violations carry 4% of annual revenue risk under GDPR.
+
+## Second-Order Effects
+
+- **CDN configuration changes**: Required coordination with infrastructure team
+- **API response headers**: Must include cache-control directives matching tier classification
+- **Monitoring gaps**: Existing cache metrics don't distinguish by data tier; new dashboards needed
+- **Developer education**: All teams need to understand data classification before caching decisions
+
+## Failure Modes
+
+| Failure | Impact | Mitigation |
+|---------|--------|------------|
+| PII cached with wrong TTL | Compliance violation, potential fine | Pre-commit hooks checking cache configuration |
+| Version increment missed on deletion | Stale PII served to users | Deletion workflow includes cache invalidation step with verification |
+| CDN purge API failure | Stale content for up to 24h | Retry queue with alerting; fallback to reduced TTL |
+| Cache key convention drift | Ungovernable cache, audit failure | Quarterly cache key inventory automated report |
+
+### Common Failure Modes in Practice
+
+**Example 1: The "harmless" cache addition**
+
+A developer adds Redis caching for user profile API to fix a latency issue. The profile includes email address (PII). No cache invalidation hook exists. Six months later, a GDPR deletion request comes in—the user's email persists in cache for 24 hours after "deletion" from database.
+
+**Example 2: CDN misconfiguration**
+
+Marketing requests caching of personalized landing pages. CDN caches pages with user's name in the HTML. Cache-Control headers aren't set. CDN serves cached page to wrong users. Privacy incident.
+
+## Observability & SLOs
+
+**Key Metrics:**
+- Cache hit rate by data tier
+- PII cache key count (should be zero for "never cache" tier)
+- Time from deletion request to full cache purge
+- Cache invalidation latency (p99)
+
+**SLO Targets:**
+- 99.9% of deletion requests fully propagated (including cache) within 1 hour
+- Zero PII cache keys in "never cache" tier (measured daily)
+- Cache invalidation p99 < 500ms
+
+**Alerting:**
+- Alert if any PII detected in "never cache" tier
+- Alert if deletion propagation exceeds 4 hours
+
+## Rollout Plan
+
+1. **Phase 1 (Week 1-2)**: Data classification exercise; label all cached data types
+2. **Phase 2 (Week 3-4)**: Implement cache key conventions; update 3 pilot services
+3. **Phase 3 (Week 5-6)**: Add deletion event listeners; integrate with GDPR workflow
+4. **Phase 4 (Week 7-8)**: Migrate remaining services; CDN configuration updates
+5. **Phase 5 (Week 9)**: Audit, documentation, runbook creation
+
+**Rollback Criteria:**
+- Cache hit rate drops below 60% (current baseline: 85%)
+- Deletion propagation latency exceeds 4 hours
+- Any production incident traced to cache invalidation
+
+## Ownership
+
+- **DRI**: Platform Team
+- **Reviewers**: Security, Legal, Product Engineering leads
+
+## When to Revisit
+
+- New regulation with stricter deletion requirements (e.g., sub-24-hour mandate)
+- Cache infrastructure migration (Redis → different system)
+- Significant change in PII definition or data classification
+- Acquisition of company with different compliance posture
+
+---
+
+## Related Pages
+
+- [Deep Dives: Security](/deep-dives/security)
+- [Frameworks: Trade-off Matrix](/frameworks/tradeoff-matrix)

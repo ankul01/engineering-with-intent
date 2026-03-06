@@ -1,0 +1,150 @@
+---
+title: "Rate Limiting: Fairness, Abuse, and Dependency Protection"
+description: "Designing rate limiting that balances fairness across customers, protects against abuse, and shields downstream dependencies"
+category: "resilience"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Rate Limiting: Fairness, Abuse, and Dependency Protection
+
+How to design rate limiting that's fair to good actors, stops bad actors, and protects your downstream dependencies from your own traffic.
+
+## Context
+
+Rate limiting serves three distinct purposes that often conflict:
+
+1. **Fairness**: Ensure one customer can't starve others (multi-tenant SaaS)
+2. **Abuse prevention**: Stop bad actors before they cause damage
+3. **Dependency protection**: Shield downstream services from traffic spikes you generate
+
+Most rate limiting tutorials focus on simple token buckets. Real systems need layered strategies.
+
+## Constraints
+
+- **Compliance**: SLA guarantees specific request quotas per pricing tier
+- **Timeline**: API launch in 8 weeks; partners already onboarded with rate limit expectations
+- **Team**: 2 engineers; no dedicated infrastructure team
+- **Dependencies**: Third-party payment API with 100 req/sec global limit; shared across all customers
+- **Business**: Can't reject legitimate customers during peak; premium tier expects "unlimited" access
+
+## Options Considered
+
+| Option | Pros | Cons | Effort |
+|--------|------|------|--------|
+| **A: Global token bucket** | Simple, protects backend | Not fair; one customer can consume all capacity | Low |
+| **B: Per-customer token bucket** | Fair per customer | Doesn't protect shared dependencies | Low |
+| **C: Layered limiting (customer + global + dependency)** | Comprehensive protection | Complex to configure and debug | Medium |
+| **D: Adaptive rate limiting** | Self-tuning, handles variable load | Complex, unpredictable behavior | High |
+| **E: Priority queuing with rate limiting** | Protects premium customers | Queue management complexity | High |
+
+## Decision
+
+**Option C: Layered rate limiting with three tiers**
+
+```
+Layer 1: Per-customer limits (fairness)
+    ↓
+Layer 2: Global API limits (backend protection)
+    ↓
+Layer 3: Dependency-specific limits (downstream protection)
+```
+
+Implementation:
+1. **Per-customer**: Sliding window counter in Redis; limits based on pricing tier
+2. **Global**: Token bucket for overall API capacity; fail-open to per-customer limits
+3. **Dependency**: Semaphore for external API calls; queue excess requests
+
+Premium tier gets 10x base limits but still subject to global and dependency limits.
+
+## Trade-offs Accepted
+
+- **Premium isn't truly "unlimited"**: Marketing says "unlimited" but engineering enforces 10x standard
+- **Complexity**: Three layers means three places to debug
+- **Latency**: Each layer adds ~1ms; total overhead ~3ms
+
+These are acceptable because:
+- "Unlimited" premium customers are under 1% of traffic; 10x handles their needs
+- Layered approach is necessary; single layer can't solve all three problems
+- 3ms overhead is negligible compared to 200ms typical request latency
+
+## Second-Order Effects
+
+- **Pricing tier changes**: Rate limits must be updated when tiers change
+- **Monitoring complexity**: Need visibility into which layer triggered rejection
+- **Customer support**: Need tooling to check customer's current rate limit status
+- **Dependency onboarding**: New external APIs need their own limit configuration
+
+## Failure Modes
+
+| Failure | Impact | Mitigation |
+|---------|--------|------------|
+| Redis failure | Rate limits stop working | Fail-open with local fallback limits |
+| Limit misconfiguration | Legitimate traffic rejected | Canary deployment; shadow mode testing |
+| Dependency limit too aggressive | Requests pile up, timeout | Circuit breaker for dependency queue |
+| One customer exploits limit reset | Spikes at window boundary | Sliding window instead of fixed window |
+
+### Common Failure Modes in Practice
+
+**Example 1: The synchronized spike**
+
+All customers hit API at minute boundary (cron jobs). Fixed-window rate limits reset simultaneously. All customers get full quota at :00. Backend overwhelmed for first 10 seconds of every minute.
+
+**Fix**: Sliding window rate limiting. Quota is always "last 60 seconds" not "this minute." Smooths traffic.
+
+**Example 2: The "legitimate" abuse**
+
+Customer builds polling integration. Hits API 100 times/second checking for updates. Technically within their "unlimited" tier. Consumes 80% of backend capacity. Other customers suffer.
+
+**Fix**: Per-customer global limits regardless of tier. Even "unlimited" means "very high" not "infinite." Publish fair use policy.
+
+## Observability & SLOs
+
+**Key Metrics:**
+- Rejection rate by layer (customer, global, dependency)
+- Rejection rate by customer tier
+- Dependency queue depth and wait time
+- 429 response rate (overall and per customer)
+- Time to rate limit recovery after spike
+
+**SLO Targets:**
+- Under 1% of standard tier requests rejected due to global limits
+- Under 0.1% of premium tier requests rejected due to any limit
+- Dependency queue wait time p99 under 100ms
+
+**Alerting:**
+- Warn if any customer rejection rate > 10%
+- Page if global rejection rate > 5%
+- Page if dependency queue depth > 1000
+
+## Rollout Plan
+
+1. **Phase 1 (Week 1-2)**: Implement per-customer limits; shadow mode (log, don't reject)
+2. **Phase 2 (Week 3)**: Analyze shadow mode data; tune limits based on actual traffic
+3. **Phase 3 (Week 4-5)**: Enable per-customer enforcement; monitor rejection rates
+4. **Phase 4 (Week 6)**: Add global and dependency layers in shadow mode
+5. **Phase 5 (Week 7-8)**: Full enforcement; partner notification of rate limit behavior
+
+**Rollback Criteria:**
+- >5% rejection rate for standard tier customers
+- Any premium tier customer seeing rejections
+- Latency increase > 10ms attributable to rate limiting
+
+## Ownership
+
+- **DRI**: API Platform Team
+- **Reviewers**: Customer Success, Product, SRE
+
+## When to Revisit
+
+- Pricing tier changes affecting rate limit expectations
+- New external dependency with different limiting requirements
+- Geographic expansion requiring regional rate limits
+- Traffic pattern shift (e.g., new high-volume use case)
+
+---
+
+## Related Pages
+
+- [Async Processing: Retries, Idempotency, and DLQ](/decisions/resilience/async-retries-idempotency-dlq)
+- [Deep Dives: Reliability](/deep-dives/reliability)

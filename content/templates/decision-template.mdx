@@ -1,0 +1,101 @@
+---
+title: Decision Page Template
+description: Template for documenting architecture decisions under constraints.
+---
+
+# Decision Page Template
+
+Use this template to document architecture decisions with full context, constraints, and trade-offs.
+
+---
+
+## Template
+
+```markdown
+# [Decision Title]
+
+## Context
+_What situation or problem triggered this decision?_
+
+- Business context and goals
+- Technical environment and existing systems
+- Timeline and urgency
+
+## Constraints
+_What real-world constraints shaped the options?_
+
+| Constraint | Impact |
+|------------|--------|
+| Cost | Budget of $X/month |
+| Compliance | GDPR, SOC2, HIPAA requirements |
+| Latency | P99 under 100ms |
+| Team size | 3 engineers available |
+| Timeline | Must ship in 6 weeks |
+| Dependencies | Legacy system X cannot be modified |
+
+## Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| Option A | ... | ... |
+| Option B | ... | ... |
+| Option C | ... | ... |
+
+## Decision
+_What was chosen and why?_
+
+We chose **Option X** because:
+1. Reason one
+2. Reason two
+3. Reason three
+
+## Trade-offs Accepted
+_What did we give up? What risks did we take on?_
+
+- Trade-off 1: We accepted X in exchange for Y
+- Trade-off 2: ...
+
+## Second-order Effects
+_What changed downstream as a result? What surprised us?_
+
+- Effect 1: ...
+- Effect 2: ...
+
+## Failure Modes
+_How could this decision break? What would we monitor?_
+
+| Failure Mode | Likelihood | Impact | Mitigation |
+|--------------|------------|--------|------------|
+| Mode 1 | Medium | High | Alert on X |
+| Mode 2 | Low | Critical | Circuit breaker |
+
+## Observability & SLOs
+_How do we know this decision is working?_
+
+- **SLI**: Metric we measure
+- **SLO**: Target value (e.g., 99.9% availability)
+- **Dashboard**: Link to monitoring
+- **Alerts**: Conditions that trigger alerts
+
+## When to Revisit
+_Under what conditions should we reconsider this decision?_
+
+Revisit if:
+- Condition 1 changes (e.g., traffic grows 10x)
+- Condition 2 occurs (e.g., compliance requirements change)
+- After 6 months regardless
+```
+
+---
+
+## Usage Notes
+
+1. **Be specific about constraints** — Generic constraints like "performance matters" aren't helpful. Quantify: "P99 latency under 100ms at 10K RPS"
+
+2. **Document rejected options** — Future readers need to know what was considered and why it was rejected
+
+3. **Own the trade-offs** — Every decision has downsides. Name them explicitly.
+
+4. **Define "when to revisit"** — Decisions aren't permanent. Set clear triggers for re-evaluation.
+
+5. **Link to evidence** — Reference benchmarks, spikes, or discussions that informed the decision.

@@ -1,0 +1,140 @@
+---
+title: "Async Processing: Retries, Idempotency, and DLQ"
+description: "Designing reliable async processing with retry strategies, idempotency guarantees, and dead letter queue handling"
+category: "resilience"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Async Processing: Retries, Idempotency, and DLQ
+
+How to build async processing that doesn't lose messages, doesn't process them twice, and doesn't silently drop failures.
+
+## Context
+
+Async processing is essential for decoupling services and handling variable load, but introduces three fundamental problems:
+
+1. **Messages can fail**: Network issues, downstream outages, bugs
+2. **Retries can duplicate**: Same message processed multiple times
+3. **Failures can hide**: Messages silently dropped or stuck in limbo
+
+Most async architectures handle the happy path well. Real systems need the sad paths covered.
+
+## Constraints
+
+- **Compliance**: Financial transactions must have exactly-once semantics (or audit-safe at-least-once with idempotency)
+- **Timeline**: Black Friday in 4 months; must handle 10x normal load
+- **Team**: 3 engineers, limited Kafka expertise; currently using RabbitMQ
+- **Dependencies**: Payment provider has 99.9% SLA; occasionally returns 500s for 2-3 minutes
+- **Budget**: Can't afford Kafka licensing; must use open-source or existing infrastructure
+
+## Options Considered
+
+| Option | Pros | Cons | Effort |
+|--------|------|------|--------|
+| **A: RabbitMQ with manual retry logic** | Uses existing infra, well-understood | Complex retry logic, DLQ handling manual | Medium |
+| **B: Migrate to Kafka** | Better guarantees, industry standard | Learning curve, operational complexity, timeline risk | High |
+| **C: AWS SQS + Lambda** | Managed, built-in DLQ, auto-scaling | Vendor lock-in, cold start latency, cost at scale | Medium |
+| **D: RabbitMQ + idempotency layer + custom DLQ handler** | Builds on existing, explicit guarantees | Requires idempotency key storage, monitoring effort | Medium |
+
+## Decision
+
+**Option D: RabbitMQ with explicit idempotency layer and custom DLQ handling**
+
+We keep RabbitMQ but add:
+1. **Idempotency keys** stored in Redis with 7-day TTL
+2. **Exponential backoff retry** with jitter (3 retries, then DLQ)
+3. **DLQ processor** that alerts, stores context, and enables manual replay
+4. **Transactional outbox** for critical paths (payment events)
+
+## Trade-offs Accepted
+
+- **Redis as idempotency store**: Single point of failure; mitigated by Redis Sentinel
+- **Manual DLQ processing**: Not fully automated; requires on-call runbook
+- **Outbox pattern complexity**: Two-phase commits avoided but eventual consistency window exists
+
+These are acceptable because:
+- Redis failure is recoverable (worst case: duplicate processing, caught by downstream idempotency)
+- DLQ volume is low (under 0.1% of messages); manual review is feasible
+- Eventual consistency window is under 5 seconds; acceptable for our use case
+
+## Second-Order Effects
+
+- **Observability requirements**: Need distributed tracing to follow message through retries
+- **Testing complexity**: Integration tests must cover retry scenarios
+- **Capacity planning**: Redis needs sizing for idempotency key storage
+- **On-call runbooks**: DLQ handling procedures required
+
+## Failure Modes
+
+| Failure | Impact | Mitigation |
+|---------|--------|------------|
+| Idempotency key storage fails | Duplicate processing possible | Secondary check in database transaction |
+| DLQ fills up unnoticed | Customer-facing issues undetected | Alert when DLQ depth > 100 |
+| Retry storm during outage | Amplifies downstream failure | Circuit breaker + exponential backoff with jitter |
+| Message ordering lost | Business logic errors | Partition by entity ID; accept eventual consistency |
+
+### Common Failure Modes in Practice
+
+**Example 1: The retry storm**
+
+Payment provider returns 503 for 2 minutes. All in-flight payment messages retry simultaneously. Provider rate-limits us. Retries fail. Messages go to DLQ. Customers see failed payments. Manual intervention required for 500 orders.
+
+**Fix**: Exponential backoff with jitter. First retry at 1s ± 500ms, second at 4s ± 2s, third at 16s ± 8s. Spreads retry load over time.
+
+**Example 2: The silent duplicate**
+
+Order service publishes "OrderCreated" event. Consumer processes it, creates invoice. Network blip causes RabbitMQ to not receive ACK. Message redelivered. Second invoice created. Customer charged twice.
+
+**Fix**: Idempotency key (order_id + event_type) checked before processing. If exists, ACK immediately without processing.
+
+## Observability & SLOs
+
+**Key Metrics:**
+- Message processing latency (p50, p95, p99)
+- Retry rate by queue
+- DLQ depth by queue
+- Idempotency hit rate (duplicate detection)
+- End-to-end message delivery time
+
+**SLO Targets:**
+- 99.9% of messages processed within 30 seconds
+- DLQ depth < 100 messages (sustained)
+- Zero undetected DLQ messages > 1 hour old
+
+**Alerting:**
+- Page if DLQ depth > 100 for 5 minutes
+- Warn if retry rate > 5% for 15 minutes
+- Page if processing latency p99 > 60 seconds
+
+## Rollout Plan
+
+1. **Phase 1 (Week 1)**: Implement idempotency layer; deploy to staging
+2. **Phase 2 (Week 2)**: Add retry logic with exponential backoff; chaos test
+3. **Phase 3 (Week 3)**: Deploy DLQ handler; create runbooks
+4. **Phase 4 (Week 4)**: Canary to 10% production traffic
+5. **Phase 5 (Week 5)**: Full rollout; load test at 10x
+
+**Rollback Criteria:**
+- Message loss detected (consumer count < producer count)
+- DLQ rate > 1% of messages
+- Processing latency p99 > 2 minutes
+
+## Ownership
+
+- **DRI**: Backend Platform Team
+- **Reviewers**: Payments Team, SRE
+
+## When to Revisit
+
+- Message volume exceeds RabbitMQ cluster capacity (>50k msg/sec sustained)
+- Need for exactly-once semantics without idempotency (consider Kafka transactions)
+- Multi-region deployment requiring geo-replication
+- Compliance requirement for message retention > 7 days
+
+---
+
+## Related Pages
+
+- [Rate Limiting: Fairness and Dependency Protection](/decisions/resilience/rate-limiting-fairness)
+- [Deep Dives: Reliability](/deep-dives/reliability)

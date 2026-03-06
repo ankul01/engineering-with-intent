@@ -1,0 +1,4 @@
+1:"$Sreact.fragment"
+2:I[78943,["/leadership-learning/_next/static/chunks/17bc572fb00f6ff5.js","/leadership-learning/_next/static/chunks/deabb8f52005ee9c.js","/leadership-learning/_next/static/chunks/e83ae5ec2d13974b.js","/leadership-learning/_next/static/chunks/56703dde08ef2c93.js","/leadership-learning/_next/static/chunks/4c1ea950079e1b0a.js"],"default"]
+3:I[56756,["/leadership-learning/_next/static/chunks/17bc572fb00f6ff5.js","/leadership-learning/_next/static/chunks/deabb8f52005ee9c.js","/leadership-learning/_next/static/chunks/e83ae5ec2d13974b.js","/leadership-learning/_next/static/chunks/56703dde08ef2c93.js","/leadership-learning/_next/static/chunks/4c1ea950079e1b0a.js"],"default"]
+0:{"buildId":"dnDxBBLBbZ07hc41m_gRl","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}

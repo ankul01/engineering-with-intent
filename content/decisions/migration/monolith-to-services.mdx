@@ -1,0 +1,155 @@
+---
+title: "Migration Playbook: Monolith to Services Without Breaking Customers"
+description: "A decision framework for decomposing a monolith into services while maintaining customer SLAs"
+category: "migration"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Migration Playbook: Monolith to Services Without Breaking Customers
+
+How to decompose a monolith into services without customer-visible downtime, data loss, or feature regression.
+
+## Context
+
+The monolith has served us well, but it's now a bottleneck:
+
+- **Deploy velocity**: 3-hour deploy pipeline; teams blocked on each other
+- **Scaling limits**: Can't scale checkout independently from browse
+- **Team autonomy**: 8 teams, 1 codebase, constant merge conflicts
+
+The temptation is to "just rewrite it." The reality is we have 10,000 paying customers who expect zero disruption.
+
+## Constraints
+
+- **Compliance**: SOC2 requires audit trail; data must not be "lost" during migration
+- **Timeline**: 12 months to decompose critical paths; no hard deadline but investor pressure
+- **Team**: 40 engineers across 8 teams; varying microservices experience
+- **Dependencies**: Monolith has 200+ database tables; foreign key relationships everywhere
+- **Business**: Zero tolerance for customer-facing outages attributable to migration
+
+## Options Considered
+
+| Option | Pros | Cons | Effort |
+|--------|------|------|--------|
+| **A: Big bang rewrite** | Clean slate, modern architecture | High risk, no incremental value, team blocked | Very High |
+| **B: Strangler fig (extract one service at a time)** | Low risk, incremental value, parallel work | Long timeline, dual maintenance | Medium per service |
+| **C: Modular monolith first, then extract** | Lower risk than extraction, faster | Delays service benefits, refactoring twice | Medium |
+| **D: Domain-driven decomposition with shared database** | Faster initial extraction | Database coupling remains, partial benefit | Medium |
+
+## Decision
+
+**Option B: Strangler fig pattern with a specific extraction order**
+
+Extraction priority based on:
+1. **Independence**: How few inbound dependencies?
+2. **Business value**: How much does independent scaling/deployment help?
+3. **Risk**: How critical is the domain? (Start with less critical)
+
+Extraction order:
+1. **Notifications** (independent, low risk, high deployment frequency)
+2. **Search/Catalog** (read-heavy, benefits from independent scaling)
+3. **User/Auth** (foundational, moderate coupling)
+4. **Payments** (high risk, but high value; extract after team has experience)
+5. **Orders** (highly coupled, extract last)
+
+Each extraction follows a standard playbook (see Rollout Plan).
+
+## Trade-offs Accepted
+
+- **12+ month timeline**: Slower than rewrite promises, faster than rewrite delivers
+- **Dual maintenance**: For each service, 3-6 month period of maintaining both paths
+- **Complexity during transition**: Feature flags, routing logic, data sync jobs
+
+These are acceptable because:
+- Incremental delivery means value delivered from month 2, not month 12
+- Dual maintenance is bounded and predictable
+- Complexity is temporary and can be cleaned up after each extraction
+
+## Second-Order Effects
+
+- **Team structure changes**: Teams will own services; organizational implications
+- **On-call changes**: Per-service on-call vs. monolith on-call
+- **Testing strategy**: Contract testing needed between services
+- **Deployment pipeline**: Need service-specific CI/CD
+- **Observability**: Distributed tracing required
+
+## Failure Modes
+
+| Failure | Impact | Mitigation |
+|---------|--------|------------|
+| Data inconsistency during dual-write | Customer sees different data in different views | Shadow verification: compare outputs before cutover |
+| Service extraction incomplete | Feature gaps discovered post-cutover | Feature parity checklist; shadow testing |
+| Performance regression | New service slower than monolith path | Latency comparison in shadow mode; SLO gates |
+| Rollback not possible | Stuck with broken service | Always maintain monolith path until confident |
+
+### Common Failure Modes in Practice
+
+**Example 1: The forgotten edge case**
+
+Team extracts Order service. All happy-path tests pass. After cutover, discover that a specific legacy order type (created before 2018) has different discount logic. New service calculates wrong totals. Customer complaints.
+
+**Fix**: Shadow mode comparison. Run both paths, compare outputs. Alert on mismatches. Don't cut over until mismatch rate is 0% for 2 weeks.
+
+**Example 2: The data migration gap**
+
+User service extracted. Historical data migrated. But: migration script didn't include soft-deleted users. Customer tries to recover account. User not found. Support ticket.
+
+**Fix**: Migration completeness checks. Count records in source and destination. Reconciliation reports. Include edge cases (soft-deleted, archived, etc.).
+
+## Observability & SLOs
+
+**Key Metrics:**
+- Shadow mode mismatch rate (new service vs. monolith)
+- Latency comparison (new service p99 vs. monolith p99)
+- Error rate by path (new service vs. monolith)
+- Traffic percentage on new service
+- Data sync lag (if using dual-write)
+
+**SLO Targets:**
+- Mismatch rate < 0.01% before cutover
+- New service latency within 10% of monolith
+- Zero customer-reported issues attributable to migration
+
+**Cutover Gates:**
+- 2 weeks at 0% mismatch rate
+- 1 week at 50% traffic with no incidents
+- Rollback tested and verified
+
+## Rollout Plan
+
+**Per-Service Extraction Playbook:**
+
+1. **Week 1-2**: Define service boundary; identify data and API contracts
+2. **Week 3-4**: Build service shell; implement core functionality
+3. **Week 5-6**: Shadow mode deployment; dual execution, compare results
+4. **Week 7-8**: Fix mismatches; iterate until 0% mismatch
+5. **Week 9**: Canary at 5% traffic; monitor closely
+6. **Week 10**: Ramp to 50%; 1 week soak
+7. **Week 11**: Ramp to 100%; keep monolith path available
+8. **Week 12-14**: Remove monolith path; cleanup
+
+**Rollback Criteria (any phase):**
+- Error rate > 0.1%
+- Latency increase > 20%
+- Any customer-reported issue
+- Data inconsistency detected
+
+## Ownership
+
+- **DRI**: Platform Architecture Team
+- **Reviewers**: Domain team leads, SRE, Product
+
+## When to Revisit
+
+- Extraction order needs adjustment based on learnings
+- New business priority changes extraction sequence
+- Team capacity changes affecting timeline
+- Technical discovery reveals different coupling than expected
+
+---
+
+## Related Pages
+
+- [Deep Dives: Monolith to Microservices](/deep-dives/monolith-to-microservices)
+- [Deep Dives: Migration Strategies](/deep-dives/migration-strategies)

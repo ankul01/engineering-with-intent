@@ -1,0 +1,147 @@
+---
+title: "Partitioning Strategy for Product-Driven Hotspots"
+description: "Designing data partitioning when business logic creates predictable hot partitions"
+category: "data-systems"
+status: "draft"
+lastUpdated: "2026-03-06"
+---
+
+# Partitioning Strategy for Product-Driven Hotspots
+
+How to partition data when your product creates predictable hotspots: viral content, flash sales, celebrity users, or time-based access patterns.
+
+## Context
+
+Standard partitioning advice (hash by ID, range by time) assumes uniform access patterns. Real products break this assumption:
+
+- **Flash sales**: Single product receives 100x normal traffic
+- **Viral content**: One post gets 10M views in an hour
+- **Celebrity users**: Accounts with 50M followers create asymmetric load
+- **Time-based patterns**: All users query "today's data" simultaneously
+
+When your product success creates your infrastructure failure, you need a different approach.
+
+## Constraints
+
+- **Timeline**: Flash sale event in 6 weeks; must handle 50x spike on specific products
+- **Team**: 2 backend engineers; no dedicated DBA
+- **Dependencies**: PostgreSQL with read replicas; migrating to new DB not feasible
+- **Budget**: Can add 2 more read replicas; cannot provision 10x capacity for rare spikes
+- **Business**: Cannot rate-limit customers during sales; conversion matters more than cost
+
+## Options Considered
+
+| Option | Pros | Cons | Effort |
+|--------|------|------|--------|
+| **A: Over-provision for peak** | Simple, reliable | 10x cost for capacity used 1% of time | Low |
+| **B: Hot partition detection + auto-split** | Handles unknown hotspots | Complex, reactive not proactive | High |
+| **C: Application-level caching for known hot data** | Predictable, cheap | Cache invalidation complexity | Medium |
+| **D: Write-behind + read-from-cache pattern** | Decouples read/write paths | Eventual consistency, complex failure modes | High |
+| **E: Pre-computed hot partition shards** | Proactive, handles known patterns | Requires business knowledge, manual process | Medium |
+
+## Decision
+
+**Option E + C: Pre-computed hot partition shards with aggressive application-level caching**
+
+For flash sales (predictable hotspots):
+1. Marketing flags products 48 hours before sale
+2. System pre-warms caches for flagged products
+3. Read path bypasses database entirely for flagged SKUs
+4. Write path (inventory decrement) uses dedicated partition + queue
+
+For viral content (unpredictable hotspots):
+1. CDN caching with 60-second TTL for all content
+2. View counts aggregated in Redis, flushed to DB every 5 minutes
+3. Hot content detection triggers cache TTL extension
+
+## Trade-offs Accepted
+
+- **Manual process for flash sales**: Requires ops coordination with marketing
+- **60-second stale reads**: View counts can be 60s outdated (acceptable for social metrics)
+- **Increased system complexity**: Two read paths (hot vs. normal)
+
+These are acceptable because:
+- Flash sales are planned events; 48-hour notice is standard practice
+- Exact real-time counts aren't business-critical; "10M+ views" is sufficient
+- Complexity is isolated to specific code paths with clear ownership
+
+## Second-Order Effects
+
+- **Marketing dependency**: Tech team needs advance notice; process must be documented
+- **Cache coherence**: Multiple cache layers (CDN, app, Redis) need coordinated TTLs
+- **Testing requirements**: Load tests must include hot-partition scenarios
+- **Monitoring blind spots**: Cache hits don't show database issues; need synthetic probes
+
+## Failure Modes
+
+| Failure | Impact | Mitigation |
+|---------|--------|------------|
+| Marketing forgets to flag product | Database overwhelmed during sale | Auto-detection based on add-to-cart velocity |
+| Cache pre-warm fails | Cold cache at sale start | Pre-warm verification check 2h before sale |
+| Redis cluster fails during flash sale | Fallback to DB, potential overload | Circuit breaker to reject excess requests gracefully |
+| Inventory count drift | Overselling or underselling | Reconciliation job every 5 minutes |
+
+### Common Failure Modes in Practice
+
+**Example 1: The unflagged flash sale**
+
+Marketing runs an influencer campaign without notifying engineering. Influencer posts at 2pm. Traffic spikes 100x. Database connection pool exhausted. Entire site goes down. Sale canceled.
+
+**Fix**: Automated hotspot detection. If any product's add-to-cart rate exceeds 10x baseline, automatically shift to hot-path handling.
+
+**Example 2: The cache stampede**
+
+Flash sale starts. Cache TTL expires. 10,000 concurrent requests hit database for same product. Database overloaded. Requests timeout. Users see errors.
+
+**Fix**: Cache stampede protection. Only one request fetches from DB; others wait. Implement request coalescing.
+
+## Observability & SLOs
+
+**Key Metrics:**
+- Partition load distribution (Gini coefficient)
+- Cache hit rate for flagged products
+- Database query latency by product ID
+- Inventory drift (cache vs. DB delta)
+- Request queue depth during sales
+
+**SLO Targets:**
+- 99.5% of product page loads < 200ms during flash sales
+- Zero database timeouts during planned sales events
+- Inventory drift < 1% at any point
+
+**Alerting:**
+- Page if any single product generates > 50% of DB load
+- Warn if cache hit rate < 95% for flagged products
+- Page if inventory drift > 2%
+
+## Rollout Plan
+
+1. **Phase 1 (Week 1-2)**: Build product flagging system; integrate with marketing workflow
+2. **Phase 2 (Week 3)**: Implement cache pre-warming for flagged products
+3. **Phase 3 (Week 4)**: Add hot-path read logic; feature flag controlled
+4. **Phase 4 (Week 5)**: Load test with simulated flash sale (10x traffic)
+5. **Phase 5 (Week 6)**: First real flash sale with new system; full team on-call
+
+**Rollback Criteria:**
+- Cache hit rate < 80% for flagged products
+- Page load latency p99 > 2 seconds
+- Any inventory discrepancy > 5%
+
+## Ownership
+
+- **DRI**: Backend Team
+- **Reviewers**: Marketing Ops, SRE, Product
+
+## When to Revisit
+
+- Flash sale frequency exceeds 1 per week (manual process doesn't scale)
+- Unpredictable virality becomes primary hotspot source
+- Database migration to a natively sharded system
+- Multi-region deployment with regional hotspots
+
+---
+
+## Related Pages
+
+- [Cache Invalidation Under Compliance Constraints](/decisions/data-systems/cache-invalidation-compliance)
+- [Deep Dives: Reliability](/deep-dives/reliability)

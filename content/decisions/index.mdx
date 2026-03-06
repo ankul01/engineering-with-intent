@@ -1,0 +1,57 @@
+---
+title: Decisions Under Constraints
+description: How to make and defend architecture choices under real-world constraints.
+---
+
+# Decisions Under Constraints
+
+How to make and defend architecture choices under real-world constraints: cost, compliance, latency, team topology, and time.
+
+---
+
+## Why This Matters
+
+Every architecture decision involves trade-offs. Perfect solutions don't exist in production. What matters is:
+
+- **Making decisions explicit** — Document the constraints, options, and rationale
+- **Accepting trade-offs consciously** — Know what you're giving up
+- **Planning for failure** — Understand how decisions can break
+- **Knowing when to revisit** — Decisions have a shelf life
+
+## Sections
+
+### Decision Templates
+Reusable formats for documenting architecture decisions: ADRs, tradeoff matrices, decision records.
+[Browse Templates →](/decisions/decision-templates)
+
+### System Design Decisions
+Decisions around caching, queuing, partitioning, rate limiting, and other system design components.
+[Browse System Design →](/decisions/system-design)
+
+### Data & Storage Decisions
+Database selection, consistency models, replication strategies, and data architecture choices.
+[Browse Data & Storage →](/decisions/data-storage)
+
+### Architecture Patterns
+Monolith to services migrations, CQRS, event-driven architectures, and structural patterns.
+[Browse Architecture Patterns →](/decisions/architecture-patterns)
+
+### Case Studies
+Sanitized real-world decisions with full context, constraints, and outcomes.
+[Browse Case Studies →](/decisions/case-studies)
+
+---
+
+## Decision Framework
+
+When documenting a decision, use this structure:
+
+1. **Context** — What situation or problem triggered this decision?
+2. **Constraints** — What real-world constraints shaped the options?
+3. **Options** — What alternatives were considered?
+4. **Decision** — What was chosen and why?
+5. **Trade-offs** — What was given up?
+6. **Failure Modes** — How could this break?
+7. **When to Revisit** — Under what conditions should we reconsider?
+
+See [Decision Templates](/decisions/decision-templates) for the full template.

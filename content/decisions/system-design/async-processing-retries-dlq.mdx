@@ -1,0 +1,95 @@
+---
+title: "Async Processing: Retries, Idempotency, and DLQ Design"
+description: How to design reliable async processing with proper retry semantics, idempotency guarantees, and dead letter queue handling.
+---
+
+# Async Processing: Retries, Idempotency, and DLQ Design
+
+How to design reliable async processing with proper retry semantics, idempotency guarantees, and dead letter queue handling.
+
+## Context
+
+A payment processing system needed to handle webhook notifications from multiple payment providers. Each webhook triggered downstream processing (ledger updates, notifications, reconciliation). The system processed 10M+ events/day with strict exactly-once processing requirements for financial accuracy.
+
+**Business context:**
+- 10M+ payment events/day
+- Financial accuracy: zero duplicate or missed transactions
+- Provider SLAs: webhooks may be delivered multiple times
+- Regulatory requirement: full audit trail of all processing
+
+## Constraints
+
+| Constraint | Impact |
+|------------|--------|
+| Exactly-once semantics | Cannot double-charge or miss payments |
+| Provider retries | Must handle duplicate webhook delivery |
+| Ordering | Some events must be processed in order (charge → refund) |
+| Latency | P99 processing time under 5 seconds |
+| Audit | Every event and outcome must be logged |
+
+## Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| Synchronous processing | Simple, immediate feedback | No retry, blocks provider |
+| At-least-once + dedup | Common pattern, proven | Requires idempotency keys |
+| Exactly-once (transactional outbox) | Strongest guarantees | Complex, performance overhead |
+| Event sourcing | Natural audit, replay capability | Significant architecture change |
+
+## Decision
+
+We chose **at-least-once delivery with application-level idempotency**:
+
+1. **Idempotency key**: Provider webhook ID + event type, stored in Redis with 7-day TTL
+2. **Retry strategy**: Exponential backoff (1s, 2s, 4s, 8s, 16s) with jitter, max 5 retries
+3. **Dead letter queue**: Failed events after max retries go to DLQ with full context
+4. **Ordering**: Partition by entity ID (user/merchant), process partitions serially
+
+**Why this approach:**
+- Idempotency keys are natural (providers include unique event IDs)
+- At-least-once is simpler to operate than exactly-once
+- DLQ allows manual intervention without blocking the pipeline
+
+## Trade-offs Accepted
+
+- **Storage cost**: 7-day idempotency key retention uses ~50GB Redis
+- **Manual intervention**: DLQ events require on-call engineer review
+- **Ordering constraints**: Partitioning limits parallelism for high-volume merchants
+
+## Second-order Effects
+
+- **Positive**: Idempotency infrastructure reused for API request deduplication
+- **Unexpected**: DLQ analysis revealed provider bugs (duplicate webhooks with different IDs)
+- **Operational**: DLQ processing became a daily ritual requiring dedicated time
+
+## Failure Modes
+
+| Failure Mode | Likelihood | Impact | Mitigation |
+|--------------|------------|--------|------------|
+| Redis idempotency store failure | Low | Duplicate processing | Fallback to DB check, accept latency |
+| Poison message | Medium | Blocks partition | Max retry limit, auto-DLQ |
+| DLQ overflow | Low | Lost events | Alert on DLQ depth, auto-scale review |
+| Clock skew (TTL issues) | Very Low | Premature key expiry | Use logical clocks, extend TTL margin |
+
+## Observability & SLOs
+
+- **SLI**: Percentage of events processed successfully within 5 seconds
+- **SLO**: 99.9% success rate, P99 latency under 5 seconds
+- **Dashboard**: Processing latency, retry rate, DLQ depth, idempotency cache hit rate
+- **Alerts**: DLQ depth > 100, retry rate > 5%, Redis latency > 10ms
+
+## Common Failure Modes
+
+1. **Idempotency key collision**: Different event types with same provider ID. Fixed by including event type in the key.
+
+2. **Retry amplification**: Transient failures caused retry storms that overwhelmed downstream services. Fixed by adding circuit breakers and adaptive rate limiting.
+
+3. **DLQ rot**: Events sat in DLQ for weeks without review. Fixed by adding SLA on DLQ processing (24h) and automated escalation.
+
+## When to Revisit
+
+Revisit if:
+- Event volume grows 10x (consider exactly-once with Kafka transactions)
+- Adding new providers with different retry semantics
+- DLQ processing becomes more than 1 hour/day of engineering time
+- Financial audit requirements change

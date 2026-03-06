@@ -1,7 +1,7 @@
 {
-  "name": "leadership-learning",
-  "version": "1.0.0",
-  "description": "Interview preparation for senior engineering and engineering leadership roles.",
+  "name": "engineering-with-intent",
+  "version": "2.0.0",
+  "description": "Architecture decisions and operating practices that hold up in production. For Staff engineers, Tech leads, and Engineering managers.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,17 +13,21 @@
     "url": "git+https://github.com/ankul01/leadership-learning.git"
   },
   "keywords": [
-    "interview",
+    "architecture",
     "system-design",
-    "leadership",
-    "engineering"
+    "staff-engineer",
+    "tech-lead",
+    "engineering-manager",
+    "technical-decisions",
+    "operating-practices",
+    "production-engineering"
   ],
   "author": "Ankul Choudhary",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/ankul01/leadership-learning/issues"
   },
-  "homepage": "https://ankul01.github.io/leadership-learning",
+  "homepage": "https://ankul01.github.io/engineering-with-intent",
   "dependencies": {
     "next": "^16.1.6",
     "nextra": "^4.6.1",

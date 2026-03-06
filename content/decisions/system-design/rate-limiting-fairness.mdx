@@ -1,0 +1,99 @@
+---
+title: "Rate Limiting: Fairness, Abuse, and Dependency Protection"
+description: How to design rate limiting that balances fairness across tenants, prevents abuse, and protects downstream dependencies.
+---
+
+# Rate Limiting: Fairness, Abuse, and Dependency Protection
+
+How to design rate limiting that balances fairness across tenants, prevents abuse, and protects downstream dependencies.
+
+## Context
+
+A multi-tenant API platform serving 500+ B2B customers needed rate limiting that:
+- Protected shared infrastructure from noisy neighbors
+- Allowed burst capacity for legitimate traffic patterns
+- Prevented abuse without blocking paying customers
+- Protected downstream dependencies from overload
+
+**Business context:**
+- 500+ tenants with varying usage patterns
+- Peak traffic: 100K RPS across all tenants
+- Revenue varies 100x between smallest and largest customers
+- Downstream database connection pool: 500 connections
+
+## Constraints
+
+| Constraint | Impact |
+|------------|--------|
+| Multi-tenancy | Fair resource allocation across tenants |
+| Burst tolerance | Legitimate spikes shouldn't be rejected |
+| Abuse prevention | Bad actors shouldn't impact good customers |
+| Dependency protection | Database can't handle more than 50K queries/sec |
+| Customer experience | Rate limit errors must be actionable |
+
+## Options Considered
+
+| Option | Pros | Cons |
+|--------|------|------|
+| Fixed window | Simple, predictable | Burst at window boundaries |
+| Sliding window | Smoother distribution | More state, slightly complex |
+| Token bucket | Handles bursts well | Harder to reason about limits |
+| Adaptive limiting | Responds to actual load | Unpredictable limits |
+
+## Decision
+
+We chose **tiered token bucket with adaptive backpressure**:
+
+1. **Per-tenant token bucket**: Refill rate based on plan tier, burst capacity = 2x sustained rate
+2. **Global circuit breaker**: When downstream latency exceeds threshold, reduce all limits by 50%
+3. **Abuse detection**: Anomaly detection on request patterns, automatic throttling
+4. **Fair queuing**: When at capacity, round-robin across tenants rather than FIFO
+
+**Why this approach:**
+- Token bucket naturally handles legitimate bursts
+- Adaptive backpressure protects dependencies without manual intervention
+- Fair queuing prevents large tenants from starving small ones
+
+## Trade-offs Accepted
+
+- **Complexity**: Multiple interacting systems (token bucket + circuit breaker + anomaly detection)
+- **Unpredictability**: Adaptive limits mean customers can't always predict exact limits
+- **State overhead**: Per-tenant token state requires distributed storage (Redis cluster)
+
+## Second-order Effects
+
+- **Positive**: Backpressure signals helped customers optimize their integration patterns
+- **Unexpected**: Anomaly detection had false positives during legitimate traffic spikes (marketing campaigns)
+- **Business**: Rate limit tiers became a pricing lever (higher tiers = higher limits)
+
+## Failure Modes
+
+| Failure Mode | Likelihood | Impact | Mitigation |
+|--------------|------------|--------|------------|
+| Redis rate limit store failure | Low | No rate limiting (open) | Fallback to local rate limiting, conservative limits |
+| False positive abuse detection | Medium | Customer blocked | Manual override capability, quick appeal process |
+| Limit misconfiguration | Low | Over/under limiting | Config validation, gradual rollout |
+| Clock skew | Low | Token bucket drift | Use logical timestamps, periodic sync |
+
+## Observability & SLOs
+
+- **SLI**: Percentage of legitimate requests served (not rate limited)
+- **SLO**: 99.5% of requests within plan limits are served
+- **Dashboard**: Rate limit hits by tenant, abuse detection triggers, circuit breaker state
+- **Alerts**: Global rate limit hit rate > 1%, circuit breaker open > 5 minutes
+
+## Common Failure Modes
+
+1. **Retry amplification**: Rate-limited clients retried immediately, making limits ineffective. Fixed by including Retry-After headers and educating customers.
+
+2. **Limit leakage**: Different API endpoints had separate limits, allowing aggregate abuse. Fixed by shared token bucket across related endpoints.
+
+3. **Enterprise customer impact**: Largest customer hit limits during legitimate batch jobs. Fixed by adding scheduled capacity reservation feature.
+
+## When to Revisit
+
+Revisit if:
+- Customer complaints about rate limiting increase significantly
+- Adding new downstream dependencies with different capacity profiles
+- Moving to a usage-based pricing model
+- Traffic patterns change significantly (e.g., more batch, less real-time)
