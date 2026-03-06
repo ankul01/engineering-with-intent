@@ -1,0 +1,433 @@
+---
+title: "Performance Management"
+description: "Goal setting, continuous feedback, performance reviews, handling underperformance, and promotions."
+---
+
+# Performance Management
+
+Effective performance management develops talent, drives results, and builds high-performing teams. This guide covers the full cycle from goal setting to promotions.
+
+## Goal Setting
+
+### SMART Goals
+
+```
+S - Specific      → Clear, unambiguous
+M - Measurable    → Quantifiable success criteria
+A - Achievable    → Realistic given resources
+R - Relevant      → Aligned with team/company goals
+T - Time-bound    → Clear deadline
+```
+
+### OKRs (Objectives and Key Results)
+
+```
+Objective: Improve platform reliability
+├── KR1: Reduce P99 latency from 500ms to 200ms
+├── KR2: Achieve 99.95% availability (up from 99.5%)
+└── KR3: Decrease incident MTTR from 2 hours to 30 minutes
+
+Objective: Accelerate team delivery
+├── KR1: Increase deployment frequency from weekly to daily
+├── KR2: Reduce PR review time from 2 days to 4 hours
+└── KR3: Ship 3 major features by Q4
+```
+
+### Goal Alignment
+
+```
+Company Goals
+    │
+    ▼
+Team Goals ────▶ Individual Goals
+    │                    │
+    │                    ▼
+    │             Development Goals
+    │             (Career growth)
+    │
+    ▼
+Project Goals
+```
+
+### Individual Goal Setting Conversation
+
+```
+1. Review previous goals
+   - What was achieved?
+   - What was missed and why?
+
+2. Understand aspirations
+   - Where do you want to grow?
+   - What skills do you want to develop?
+
+3. Set new goals
+   - 3-5 goals (not too many)
+   - Mix of delivery and development
+   - Clear success criteria
+
+4. Identify support needed
+   - Resources, training, mentorship
+   - Obstacles to address
+```
+
+---
+
+## Continuous Feedback
+
+### Feedback Framework (SBI)
+
+```
+Situation → Behavior → Impact
+
+"In yesterday's design review [Situation],
+ you interrupted the presenter several times [Behavior].
+ This made it hard for them to finish their points
+ and the meeting ran over [Impact]."
+```
+
+### Positive Feedback Examples
+
+| Situation | Behavior | Impact |
+|-----------|----------|--------|
+| Launch last week | You identified the caching bug before release | Prevented a production incident |
+| Team meeting | You facilitated the discussion effectively | Everyone had a chance to contribute |
+| Code review | Your detailed feedback on the PR | Helped the junior engineer learn testing best practices |
+
+### Constructive Feedback Examples
+
+| Situation | Behavior | Impact |
+|-----------|----------|--------|
+| Sprint planning | You committed to work without clarifying requirements | Caused rework mid-sprint |
+| Incident response | You didn't document your findings | Made it harder for the next person to continue |
+| 1:1 with your report | You were checking your phone | They felt their concerns weren't being heard |
+
+### Feedback Best Practices
+
+| Do | Don't |
+|-----|-------|
+| Give feedback promptly | Wait for review cycle |
+| Be specific with examples | Use vague generalizations |
+| Focus on behavior | Attack personality |
+| Make it a conversation | Lecture |
+| Follow up on changes | Give and forget |
+
+### Regular 1:1s
+
+```
+Weekly 1:1 Structure (30-60 min):
+┌─────────────────────────────────────────────────────────────┐
+│  1. Check-in (5 min)                                        │
+│     - How are you doing? (work and life)                    │
+│                                                              │
+│  2. Their agenda (15-20 min)                                │
+│     - What's on your mind?                                  │
+│     - Blockers, concerns, updates                           │
+│                                                              │
+│  3. Your agenda (10-15 min)                                 │
+│     - Feedback, context, decisions                          │
+│                                                              │
+│  4. Development (5-10 min)                                  │
+│     - Progress on goals                                     │
+│     - Growth opportunities                                  │
+│                                                              │
+│  5. Action items (5 min)                                    │
+│     - Clear next steps for both                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Performance Reviews
+
+### Review Cycle
+
+```
+         ┌──────────────┐
+         │   January    │
+         │ Goal Setting │
+         └──────┬───────┘
+                │
+         ┌──────▼───────┐
+         │   Ongoing    │
+         │  Feedback    │
+         └──────┬───────┘
+                │
+         ┌──────▼───────┐
+         │    June      │
+         │ Mid-Year     │
+         │  Check-in    │
+         └──────┬───────┘
+                │
+         ┌──────▼───────┐
+         │   Ongoing    │
+         │  Feedback    │
+         └──────┬───────┘
+                │
+         ┌──────▼───────┐
+         │  December    │
+         │ Year-End     │
+         │   Review     │
+         └──────────────┘
+```
+
+### Writing Effective Reviews
+
+```
+Structure:
+1. Summary (1-2 sentences)
+   - Overall performance and key themes
+
+2. Accomplishments (3-5 bullets)
+   - Specific achievements with impact
+   - Reference goals set at start of period
+
+3. Areas for Growth (2-3 bullets)
+   - Constructive, actionable feedback
+   - Connect to future goals
+
+4. Rating
+   - Based on calibration with peers
+
+5. Development Plan
+   - Specific actions for growth
+```
+
+### Performance Ratings
+
+| Rating | Description | Typical Distribution |
+|--------|-------------|---------------------|
+| **Exceeds** | Consistently above expectations | 15-20% |
+| **Meets+** | Strong performance, some areas above | 25-30% |
+| **Meets** | Solid, meets expectations | 40-50% |
+| **Developing** | Some gaps, needs improvement | 10-15% |
+| **Below** | Not meeting expectations | 5% or less |
+
+### Calibration
+
+```
+Purpose:
+- Ensure consistent standards across managers
+- Identify top performers and those struggling
+- Align on rating distribution
+
+Process:
+1. Managers write reviews independently
+2. Calibration meeting with peer managers
+3. Present each person briefly
+4. Discuss ratings that seem misaligned
+5. Adjust based on discussion
+6. Final approval by leadership
+```
+
+---
+
+## Handling Underperformance
+
+### Early Intervention
+
+```
+Performance Gap Identified
+         │
+         ▼
+┌─────────────────────┐
+│  Direct Feedback    │  First conversation
+│  Set clear goals    │  Document expectations
+└──────────┬──────────┘
+           │
+           ▼ (No improvement in 2-4 weeks)
+┌─────────────────────┐
+│  Formal Warning     │  Written documentation
+│  30-day plan        │  Weekly check-ins
+└──────────┬──────────┘
+           │
+           ▼ (No improvement)
+┌─────────────────────┐
+│  PIP               │  60-90 day formal plan
+│  HR involvement    │  Clear exit criteria
+└──────────┬──────────┘
+           │
+     ┌─────┴─────┐
+     │           │
+     ▼           ▼
+ Success     Termination
+```
+
+### Performance Improvement Plan (PIP)
+
+```
+PIP Components:
+┌─────────────────────────────────────────────────────────────┐
+│  1. Current State                                           │
+│     - Specific examples of performance gaps                 │
+│     - Impact on team/project                                │
+│                                                              │
+│  2. Expected Performance                                    │
+│     - Clear, measurable goals                               │
+│     - Timeline (usually 60-90 days)                         │
+│                                                              │
+│  3. Support Provided                                        │
+│     - Training, mentorship, resources                       │
+│     - Reduced scope if needed                               │
+│                                                              │
+│  4. Check-in Cadence                                        │
+│     - Weekly progress meetings                              │
+│     - Documentation of progress                             │
+│                                                              │
+│  5. Consequences                                            │
+│     - Clear statement: success criteria or exit             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Difficult Conversations
+
+| Scenario | Approach |
+|----------|----------|
+| **Denial** | Focus on facts and specific examples |
+| **Emotional reaction** | Pause, empathize, reschedule if needed |
+| **Blame others** | Redirect to what they can control |
+| **Excuses** | Acknowledge, then refocus on future |
+
+### When to Exit
+
+| Consider exit when: |
+|---------------------|
+| Pattern of underperformance despite support |
+| Behavior issues (integrity, harassment) |
+| Misalignment with role after genuine effort |
+| Impact on team morale and productivity |
+
+---
+
+## Promotions
+
+### Promotion Criteria
+
+```
+Ready for promotion when:
+┌─────────────────────────────────────────────────────────────┐
+│  1. Already Operating at Next Level                         │
+│     - Not "potential" but demonstrated                      │
+│     - Consistent over 6+ months                             │
+│                                                              │
+│  2. Impact at Next Level Scope                              │
+│     - Senior: Project → Staff: Multiple teams               │
+│                                                              │
+│  3. Business Need                                           │
+│     - Role exists at that level                             │
+│     - Not just rewarding tenure                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Promotion Packet
+
+| Section | Content |
+|---------|---------|
+| **Summary** | Why promote, what level |
+| **Scope** | Current responsibilities, complexity |
+| **Impact** | Key achievements with metrics |
+| **Leadership** | Influence, mentoring, technical direction |
+| **Peer Feedback** | Quotes from collaborators |
+| **Growth** | Evidence of development |
+| **Gaps Addressed** | Previous feedback, how addressed |
+
+### Promotion Conversation
+
+```
+If Promoted:
+"Congratulations! You've been promoted to [level].
+ This recognizes [specific achievements].
+ At this level, we expect [new expectations]."
+
+If Not Yet:
+"You're making good progress toward [level].
+ The gaps we need to see addressed are [specific areas].
+ Let's create a plan to get you there."
+```
+
+---
+
+## Career Development
+
+### Growth Dimensions
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Career Growth Paths                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  IC Track:                                                   │
+│  Junior → Mid → Senior → Staff → Principal → Distinguished  │
+│                                                              │
+│  Management Track:                                           │
+│  Tech Lead → EM → Senior EM → Director → VP → CTO           │
+│                                                              │
+│  Switching:                                                  │
+│  IC ←→ Management possible at multiple points               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Development Plans
+
+```
+Annual Development Plan:
+┌─────────────────────────────────────────────────────────────┐
+│  Skills to Develop:                                         │
+│  - System design (for Staff promotion)                      │
+│  - Public speaking (for visibility)                         │
+│                                                              │
+│  Actions:                                                    │
+│  - Lead architecture review for Q2 project                  │
+│  - Present at team all-hands monthly                        │
+│  - Shadow Staff engineer on cross-team project              │
+│                                                              │
+│  Support:                                                    │
+│  - Monthly check-ins with Staff mentor                      │
+│  - Budget for conference attendance                         │
+│                                                              │
+│  Success Metrics:                                            │
+│  - Complete 2 system design docs independently              │
+│  - Receive positive feedback on 3+ presentations            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How do you handle an underperformer?"**
+   - Early direct feedback with specifics
+   - Clear expectations and support
+   - Documentation throughout
+   - PIP if no improvement
+   - Exit if necessary, done respectfully
+
+2. **"How do you give difficult feedback?"**
+   - SBI framework
+   - Private, timely, specific
+   - Focus on behavior, not person
+   - Collaborative problem-solving
+   - Follow up on progress
+
+3. **"How do you develop high performers?"**
+   - Understand their goals
+   - Stretch assignments
+   - Visibility and exposure
+   - Mentorship connections
+   - Clear path to promotion
+
+### Performance Management Checklist
+
+- [ ] Goals set and aligned with team?
+- [ ] Regular 1:1s scheduled?
+- [ ] Feedback given promptly?
+- [ ] Documentation maintained?
+- [ ] Development plans in place?
+- [ ] Calibration completed fairly?
+- [ ] Underperformance addressed early?
+- [ ] High performers recognized and grown?

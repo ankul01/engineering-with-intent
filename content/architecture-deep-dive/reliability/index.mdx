@@ -1,0 +1,510 @@
+---
+title: "Reliability"
+description: "SRE principles, SLOs, error budgets, chaos engineering, and resilience patterns."
+---
+
+# Reliability
+
+Reliability is the probability that a system performs its intended function under stated conditions for a specified period. This guide covers SRE principles, resilience patterns, and chaos engineering.
+
+## SRE Fundamentals
+
+### SLIs, SLOs, and SLAs
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Service Level Hierarchy                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  SLA (Agreement)     │ Contract with customers              │
+│  "99.9% uptime or    │ Business/legal commitment            │
+│   credits issued"    │ External                             │
+│         │                                                   │
+│         ▼                                                   │
+│  SLO (Objective)     │ Internal reliability target          │
+│  "99.95% of requests │ Stricter than SLA                    │
+│   complete in 200ms" │ Engineering goal                     │
+│         │                                                   │
+│         ▼                                                   │
+│  SLI (Indicator)     │ Actual measurement                   │
+│  "P99 latency is     │ What we measure                      │
+│   185ms this month"  │ Telemetry data                       │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Common SLIs
+
+| Category | SLI | Measurement |
+|----------|-----|-------------|
+| **Availability** | Success rate | Successful requests / Total requests |
+| **Latency** | Response time | P50, P90, P99 latency |
+| **Throughput** | Request rate | Requests per second |
+| **Error rate** | Failure rate | Failed requests / Total requests |
+| **Durability** | Data loss | Lost objects / Total objects |
+
+### Defining Good SLOs
+
+```
+Good SLO:
+  "99.9% of API requests will complete successfully 
+   with latency under 200ms, measured over 30 days"
+
+Components:
+  - What: API requests
+  - Success criteria: Complete successfully AND under 200ms
+  - Target: 99.9%
+  - Window: 30 days
+
+Bad SLO:
+  "System should be fast and reliable"
+  - Not measurable
+  - No target
+  - No time window
+```
+
+---
+
+## Error Budgets
+
+The acceptable amount of unreliability.
+
+### Calculating Error Budget
+
+```
+SLO: 99.9% availability over 30 days
+
+Error Budget = 100% - 99.9% = 0.1%
+
+In a 30-day month:
+  Total minutes: 30 × 24 × 60 = 43,200 minutes
+  Error budget: 43,200 × 0.001 = 43.2 minutes of downtime
+
+Monthly budget: 43 minutes
+Weekly budget: ~10 minutes
+Daily budget: ~1.4 minutes
+```
+
+### Error Budget Policy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Error Budget Status                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Budget > 50% remaining                                      │
+│  ┌──────────────────────────────────────┐                   │
+│  │ ✅ Push features aggressively         │                   │
+│  │ ✅ Experiment with new technologies   │                   │
+│  │ ✅ Accept some risk                   │                   │
+│  └──────────────────────────────────────┘                   │
+│                                                              │
+│  Budget 20-50% remaining                                     │
+│  ┌──────────────────────────────────────┐                   │
+│  │ ⚠️ Cautious feature releases          │                   │
+│  │ ⚠️ Focus on reliability work          │                   │
+│  │ ⚠️ Review recent incidents            │                   │
+│  └──────────────────────────────────────┘                   │
+│                                                              │
+│  Budget < 20% remaining                                      │
+│  ┌──────────────────────────────────────┐                   │
+│  │ 🛑 Freeze feature releases            │                   │
+│  │ 🛑 All hands on reliability           │                   │
+│  │ 🛑 Incident review and remediation    │                   │
+│  └──────────────────────────────────────┘                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Resilience Patterns
+
+### Circuit Breaker
+
+Prevent cascade failures by failing fast.
+
+```
+States:
+┌────────┐   failures > threshold   ┌────────┐
+│ Closed │─────────────────────────▶│  Open  │
+│        │                          │        │
+│ Normal │                          │ Reject │
+│ flow   │                          │  all   │
+└────────┘                          └────┬───┘
+     ▲                                   │
+     │                              timeout
+     │                                   │
+     │          ┌──────────┐             │
+     │          │Half-Open │◀────────────┘
+     └──────────│          │
+      success   │ Test one │
+                │ request  │
+                └──────────┘
+```
+
+```java
+// Resilience4j Circuit Breaker
+CircuitBreakerConfig config = CircuitBreakerConfig.custom()
+    .failureRateThreshold(50)            // Open at 50% failure
+    .waitDurationInOpenState(Duration.ofSeconds(30))
+    .slidingWindowSize(10)               // Last 10 calls
+    .build();
+
+CircuitBreaker circuitBreaker = CircuitBreaker.of("paymentService", config);
+
+Supplier<Payment> decoratedSupplier = CircuitBreaker
+    .decorateSupplier(circuitBreaker, () -> paymentService.process(order));
+
+Try<Payment> result = Try.ofSupplier(decoratedSupplier)
+    .recover(throwable -> fallbackPayment());
+```
+
+### Retry with Exponential Backoff
+
+Handle transient failures with intelligent retries.
+
+```
+Attempt 1: Immediate
+Attempt 2: Wait 1s   (base × 2^0)
+Attempt 3: Wait 2s   (base × 2^1)
+Attempt 4: Wait 4s   (base × 2^2)
+Attempt 5: Wait 8s   (base × 2^3)
+Max wait:  Capped at 30s
+
+With jitter (prevents thundering herd):
+Wait = min(cap, base × 2^attempt) × random(0.5, 1.5)
+```
+
+```python
+def retry_with_backoff(func, max_retries=5, base_delay=1, max_delay=30):
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except TransientError as e:
+            if attempt == max_retries - 1:
+                raise
+            
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            jitter = random.uniform(0.5, 1.5)
+            time.sleep(delay * jitter)
+```
+
+### Bulkhead Pattern
+
+Isolate failures to prevent cascade.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Service                               │
+│                                                              │
+│  ┌─────────────────┐    ┌─────────────────┐                 │
+│  │  Thread Pool    │    │  Thread Pool    │                 │
+│  │   (API A)       │    │   (API B)       │                 │
+│  │  ┌───────────┐  │    │  ┌───────────┐  │                 │
+│  │  │ 10 threads│  │    │  │ 10 threads│  │                 │
+│  │  └───────────┘  │    │  └───────────┘  │                 │
+│  └─────────────────┘    └─────────────────┘                 │
+│                                                              │
+│  If API A is slow, only its pool exhausted                  │
+│  API B continues working normally                           │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+```java
+// Resilience4j Bulkhead
+BulkheadConfig config = BulkheadConfig.custom()
+    .maxConcurrentCalls(10)
+    .maxWaitDuration(Duration.ofMillis(500))
+    .build();
+
+Bulkhead bulkhead = Bulkhead.of("paymentService", config);
+
+Supplier<Payment> decoratedSupplier = Bulkhead
+    .decorateSupplier(bulkhead, () -> paymentService.process(order));
+```
+
+### Timeout
+
+Bound wait times to prevent resource exhaustion.
+
+```python
+# Always use timeouts for external calls
+response = requests.get(
+    "https://api.external.com/data",
+    timeout=(3.0, 10.0)  # (connect_timeout, read_timeout)
+)
+
+# Async with timeout
+async def fetch_with_timeout():
+    try:
+        async with asyncio.timeout(5.0):
+            return await fetch_data()
+    except asyncio.TimeoutError:
+        return fallback_data()
+```
+
+### Graceful Degradation
+
+Reduce functionality rather than fail completely.
+
+```
+Full Service:
+┌─────────────────────────────────────────────────────────────┐
+│ Product page with:                                          │
+│ - Product details ✓                                         │
+│ - Recommendations ✓                                         │
+│ - Reviews ✓                                                 │
+│ - Social shares ✓                                           │
+│ - Live inventory ✓                                          │
+└─────────────────────────────────────────────────────────────┘
+
+Degraded (Reviews service down):
+┌─────────────────────────────────────────────────────────────┐
+│ Product page with:                                          │
+│ - Product details ✓                                         │
+│ - Recommendations ✓                                         │
+│ - Reviews: "Reviews temporarily unavailable"                │
+│ - Social shares ✓                                           │
+│ - Live inventory ✓                                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+```python
+def get_product_page(product_id):
+    # Critical: Must succeed
+    product = product_service.get(product_id)
+    
+    # Non-critical: Graceful degradation
+    try:
+        reviews = review_service.get(product_id, timeout=2)
+    except (Timeout, ServiceUnavailable):
+        reviews = {"message": "Reviews temporarily unavailable"}
+    
+    try:
+        recommendations = recommendation_service.get(product_id, timeout=2)
+    except (Timeout, ServiceUnavailable):
+        recommendations = []  # Empty list, still show page
+    
+    return render_page(product, reviews, recommendations)
+```
+
+---
+
+## Chaos Engineering
+
+Proactively test system resilience by introducing failures.
+
+### Chaos Engineering Principles
+
+```
+1. Define "steady state" (normal system behavior)
+2. Hypothesize that steady state continues during chaos
+3. Introduce real-world events (failures)
+4. Try to disprove the hypothesis
+5. Fix weaknesses discovered
+```
+
+### Chaos Experiments
+
+| Experiment | What it Tests |
+|------------|---------------|
+| **Kill instance** | Auto-recovery, load balancing |
+| **Network latency** | Timeout handling, circuit breakers |
+| **Disk full** | Logging, error handling |
+| **DNS failure** | Fallback, caching |
+| **Dependency failure** | Graceful degradation |
+| **CPU stress** | Auto-scaling, degradation |
+
+### Chaos Tools
+
+```yaml
+# Chaos Monkey (random instance termination)
+simianarmy:
+  chaos:
+    enabled: true
+    leashed: false
+    probability: 0.1  # 10% chance per hour
+
+# LitmusChaos experiment
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosExperiment
+metadata:
+  name: pod-delete
+spec:
+  definition:
+    scope: Namespaced
+    permissions:
+      - apiGroups: [""]
+        resources: ["pods"]
+        verbs: ["delete"]
+    args:
+      - -c
+      - "kill $(pidof <process>)"
+```
+
+### Game Days
+
+Structured chaos exercises with the team.
+
+```
+Game Day Structure:
+1. Planning (1 week before)
+   - Define scope and objectives
+   - Notify stakeholders
+   - Prepare rollback
+
+2. Execution
+   - Start with monitoring dashboards open
+   - Inject failure
+   - Observe and document
+
+3. Recovery
+   - Fix or rollback
+   - Measure recovery time
+
+4. Post-mortem
+   - What broke?
+   - What worked?
+   - Action items
+```
+
+---
+
+## Incident Management
+
+### Incident Severity Levels
+
+| Level | Impact | Response | Example |
+|-------|--------|----------|---------|
+| **SEV-1** | Complete outage | All hands, immediate | Payment system down |
+| **SEV-2** | Major degradation | On-call + escalation | 50% error rate |
+| **SEV-3** | Minor impact | On-call investigates | Single feature broken |
+| **SEV-4** | Minimal | Normal working hours | Cosmetic issue |
+
+### Incident Response Process
+
+```
+Detection
+    │
+    ▼
+┌─────────────────┐
+│   Triage        │  Assess severity, assign incident commander
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Mitigate      │  Restore service (rollback, scale, failover)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Resolve       │  Fix root cause
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│   Post-mortem   │  Blameless analysis, action items
+└─────────────────┘
+```
+
+### Blameless Post-mortems
+
+| Include | Avoid |
+|---------|-------|
+| Timeline of events | Blaming individuals |
+| What went well | Punishing for mistakes |
+| What went wrong | Hiding information |
+| Action items with owners | Vague follow-ups |
+| Systemic improvements | Quick fixes only |
+
+---
+
+## Capacity Planning
+
+### Load Testing
+
+```
+Types of Load Tests:
+
+Load Test:
+  Traffic ──────────────────────
+           Normal load sustained
+
+Stress Test:
+  Traffic   ╱╲
+           ╱  ╲
+          ╱    ╲  Beyond normal capacity
+         ╱      ╲
+        ─        ─
+
+Spike Test:
+  Traffic      │
+              ╱│╲
+             ╱ │ ╲  Sudden traffic burst
+            ╱  │  ╲
+           ─   │   ─
+
+Soak Test:
+  Traffic ──────────────────────────────────
+           Extended duration (hours/days)
+```
+
+### Capacity Metrics
+
+| Metric | Description | Action |
+|--------|-------------|--------|
+| **Headroom** | Current usage vs capacity | Scale before hitting limit |
+| **Trending** | Growth rate | Project future needs |
+| **Ceiling** | Maximum tested capacity | Know your limits |
+| **Efficiency** | Cost per request | Optimize if too high |
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you define SLOs for a payment service?"**
+   - Availability: 99.99% success rate
+   - Latency: P99 under 500ms
+   - Error budget: 4.3 minutes/month downtime
+   - Measurement window: 30 days rolling
+
+2. **"How do you handle cascade failures?"**
+   - Circuit breakers to fail fast
+   - Bulkheads for isolation
+   - Timeouts on all calls
+   - Graceful degradation
+   - Async over sync when possible
+
+3. **"Explain your incident response process"**
+   - Detection (monitoring/alerts)
+   - Triage (severity, incident commander)
+   - Mitigation (restore service first)
+   - Resolution (fix root cause)
+   - Post-mortem (blameless, action items)
+
+### Reliability Checklist
+
+- [ ] SLOs defined and measured?
+- [ ] Error budget policy in place?
+- [ ] Circuit breakers on external calls?
+- [ ] Retry with exponential backoff?
+- [ ] Timeouts on all network calls?
+- [ ] Graceful degradation paths?
+- [ ] Chaos testing conducted?
+- [ ] Incident runbooks documented?
+- [ ] On-call rotation defined?
+- [ ] Post-mortem process?
+
+### Numbers to Know
+
+| Availability | Downtime/Year | Downtime/Month |
+|--------------|---------------|----------------|
+| 99% | 3.65 days | 7.3 hours |
+| 99.9% | 8.76 hours | 43.8 minutes |
+| 99.95% | 4.38 hours | 21.9 minutes |
+| 99.99% | 52.6 minutes | 4.4 minutes |
+| 99.999% | 5.26 minutes | 26 seconds |

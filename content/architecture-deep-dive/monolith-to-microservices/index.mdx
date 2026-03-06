@@ -1,0 +1,455 @@
+---
+title: "Monolith to Microservices"
+description: "Strategies for decomposing monolithic applications into microservices architecture."
+---
+
+# Monolith to Microservices
+
+Breaking down a monolith requires careful planning, clear domain boundaries, and incremental execution. This guide covers proven patterns and strategies for successful decomposition.
+
+## When to Migrate
+
+### Signs You Need Microservices
+
+| Signal | Description |
+|--------|-------------|
+| **Scaling bottlenecks** | Can't scale specific parts independently |
+| **Deployment friction** | Small changes require full deployment |
+| **Team conflicts** | Multiple teams stepping on each other |
+| **Technology constraints** | Can't adopt new tech for specific needs |
+| **Long build/test times** | Feedback loop too slow |
+
+### When NOT to Migrate
+
+| Signal | Description |
+|--------|-------------|
+| **Small team** | Overhead outweighs benefits |
+| **Unclear domains** | Will create wrong boundaries |
+| **Early stage** | Requirements still evolving |
+| **No operational maturity** | Can't handle distributed complexity |
+
+---
+
+## Decomposition Strategies
+
+### Domain-Driven Design (DDD)
+
+Identify boundaries using business domains.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    E-Commerce Monolith                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │   Orders     │  │   Catalog    │  │   Users      │       │
+│  │   Context    │  │   Context    │  │   Context    │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│                                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │   Payments   │  │   Shipping   │  │  Inventory   │       │
+│  │   Context    │  │   Context    │  │   Context    │       │
+│  └──────────────┘  └──────────────┘  └──────────────┘       │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+         │
+         │  Extract bounded contexts as services
+         ▼
+┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐ ┌───────┐
+│Orders │ │Catalog│ │ Users │ │Payment│ │ Ship  │ │ Inv   │
+└───────┘ └───────┘ └───────┘ └───────┘ └───────┘ └───────┘
+```
+
+### Identifying Bounded Contexts
+
+| Technique | How |
+|-----------|-----|
+| **Event Storming** | Map domain events, commands, aggregates |
+| **Context Mapping** | Identify relationships between contexts |
+| **Language Analysis** | Same term means different things = different contexts |
+| **Team Structure** | Conway's Law - align with org structure |
+
+---
+
+## Strangler Fig Pattern
+
+Gradually replace monolith functionality without big-bang rewrite.
+
+### Pattern Overview
+
+```
+Phase 1: Intercept
+┌──────────┐     ┌──────────┐     ┌───────────┐
+│  Client  │────▶│  Facade  │────▶│ Monolith  │
+└──────────┘     └──────────┘     └───────────┘
+
+Phase 2: Extract
+┌──────────┐     ┌──────────┐     ┌───────────┐
+│  Client  │────▶│  Facade  │──┬─▶│ Monolith  │
+└──────────┘     └──────────┘  │  └───────────┘
+                               │
+                               └─▶┌───────────┐
+                                  │ New Svc   │
+                                  └───────────┘
+
+Phase 3: Replace
+┌──────────┐     ┌──────────┐     ┌───────────┐
+│  Client  │────▶│  Facade  │────▶│ New Svc 1 │
+└──────────┘     └──────────┘     ├───────────┤
+                               ──▶│ New Svc 2 │
+                                  ├───────────┤
+                               ──▶│ New Svc 3 │
+                                  └───────────┘
+                                  (Monolith retired)
+```
+
+### Implementation Steps
+
+```
+1. Add facade/proxy in front of monolith
+   └── All traffic flows through facade
+   
+2. Identify functionality to extract
+   └── Start with least coupled, highest value
+   
+3. Implement new service
+   └── Modern stack, clean design
+   
+4. Route traffic to new service
+   └── Gradual rollout with feature flags
+   
+5. Remove code from monolith
+   └── Dead code elimination
+   
+6. Repeat for next functionality
+```
+
+### Strangler Fig with API Gateway
+
+```
+┌──────────┐     ┌───────────────────────────────────────────┐
+│  Client  │────▶│              API Gateway                  │
+└──────────┘     └───────────────────────────────────────────┘
+                           │
+            ┌──────────────┼──────────────┐
+            │              │              │
+            ▼              ▼              ▼
+     ┌───────────┐  ┌───────────┐  ┌───────────┐
+     │ /orders/* │  │ /users/*  │  │ /legacy/* │
+     │ New Order │  │ New User  │  │ Monolith  │
+     │  Service  │  │  Service  │  │           │
+     └───────────┘  └───────────┘  └───────────┘
+```
+
+---
+
+## Branch by Abstraction
+
+Create abstraction layer to swap implementations.
+
+### Pattern
+
+```
+Step 1: Create abstraction
+┌────────────────────────────────────────────────┐
+│                  Monolith                       │
+│  ┌────────────┐                                │
+│  │  Caller    │                                │
+│  └─────┬──────┘                                │
+│        │                                        │
+│  ┌─────▼──────────────────────┐                │
+│  │      Interface             │ ◀── New       │
+│  │  ┌────────────────────┐    │                │
+│  │  │ Legacy Implementation│   │                │
+│  │  └────────────────────┘    │                │
+│  └────────────────────────────┘                │
+└────────────────────────────────────────────────┘
+
+Step 2: Add new implementation
+┌────────────────────────────────────────────────┐
+│  ┌─────▼──────────────────────┐                │
+│  │      Interface             │                │
+│  │  ┌─────────┐  ┌─────────┐  │                │
+│  │  │ Legacy  │  │   New   │  │ ◀── Toggle    │
+│  │  └─────────┘  └─────────┘  │                │
+│  └────────────────────────────┘                │
+└────────────────────────────────────────────────┘
+
+Step 3: Switch and remove legacy
+┌────────────────────────────────────────────────┐
+│  ┌─────▼──────────────────────┐                │
+│  │      Interface             │                │
+│  │  ┌─────────────────────┐   │                │
+│  │  │  New Implementation │   │                │
+│  │  └─────────────────────┘   │                │
+│  └────────────────────────────┘                │
+└────────────────────────────────────────────────┘
+```
+
+### Code Example
+
+```java
+// Step 1: Create interface
+interface NotificationService {
+    void send(User user, String message);
+}
+
+// Step 2: Legacy implementation
+class LegacyNotificationService implements NotificationService {
+    void send(User user, String message) {
+        // Old email-only logic
+    }
+}
+
+// Step 3: New implementation
+class NewNotificationService implements NotificationService {
+    void send(User user, String message) {
+        // New multi-channel logic
+        // Calls external notification microservice
+    }
+}
+
+// Step 4: Toggle via feature flag
+class NotificationServiceFactory {
+    NotificationService create() {
+        if (featureFlags.isEnabled("new-notifications")) {
+            return new NewNotificationService();
+        }
+        return new LegacyNotificationService();
+    }
+}
+```
+
+---
+
+## Data Migration Strategies
+
+### Shared Database (Temporary)
+
+```
+┌───────────┐  ┌───────────┐
+│ Monolith  │  │ New Svc   │
+└─────┬─────┘  └─────┬─────┘
+      │              │
+      └──────┬───────┘
+             │
+      ┌──────▼──────┐
+      │  Shared DB  │
+      └─────────────┘
+
+Pros: Simple, no data sync
+Cons: Coupling, schema conflicts
+Use: Short-term transition only
+```
+
+### Database per Service (Target)
+
+```
+┌───────────┐       ┌───────────┐
+│ Monolith  │       │ New Svc   │
+└─────┬─────┘       └─────┬─────┘
+      │                   │
+┌─────▼─────┐       ┌─────▼─────┐
+│ Legacy DB │       │  New DB   │
+└───────────┘       └───────────┘
+
+Migration approaches:
+1. Sync via CDC (Change Data Capture)
+2. Dual-write during transition
+3. ETL batch migration
+```
+
+### Change Data Capture (CDC)
+
+```
+┌───────────┐         ┌───────────┐
+│ Monolith  │         │ New Svc   │
+└─────┬─────┘         └─────┬─────┘
+      │                     ▲
+      │ Write               │ Consume
+      ▼                     │
+┌───────────┐    CDC   ┌────┴────┐
+│ Legacy DB │─────────▶│ Kafka   │
+└───────────┘  (Debezium)└─────────┘
+```
+
+### Data Ownership Rules
+
+| Rule | Description |
+|------|-------------|
+| **Single owner** | One service owns each piece of data |
+| **API access** | Other services access via API, not direct DB |
+| **Eventual consistency** | Accept data sync delays |
+| **Saga for transactions** | Distributed transactions via events |
+
+---
+
+## Service Extraction Process
+
+### Step-by-Step
+
+```
+1. Identify Candidate
+   ├── Well-defined domain boundary
+   ├── Minimal dependencies
+   └── High business value
+
+2. Define API Contract
+   ├── REST/gRPC interface
+   ├── Request/response models
+   └── Error handling
+
+3. Implement Service
+   ├── New codebase
+   ├── Own database
+   └── Tests
+
+4. Create Anti-Corruption Layer
+   ├── Adapter in monolith
+   ├── Maps to new service API
+   └── Handles fallback
+
+5. Dual-Run (Shadow Mode)
+   ├── Both implementations run
+   ├── Compare results
+   └── Log discrepancies
+
+6. Gradual Cutover
+   ├── Feature flag rollout
+   ├── Monitor metrics
+   └── Rollback capability
+
+7. Cleanup
+   ├── Remove monolith code
+   ├── Remove feature flags
+   └── Update documentation
+```
+
+### Anti-Corruption Layer
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Monolith                              │
+│                                                              │
+│  ┌──────────────┐     ┌─────────────────────┐               │
+│  │ Order Logic  │────▶│ Anti-Corruption     │               │
+│  └──────────────┘     │ Layer               │               │
+│                       │ ┌─────────────────┐ │               │
+│                       │ │ Adapter         │ │               │
+│                       │ │ - Map models    │ │               │
+│                       │ │ - Handle errors │ │               │
+│                       │ │ - Add resilience│ │               │
+│                       │ └────────┬────────┘ │               │
+│                       └──────────┼──────────┘               │
+└──────────────────────────────────┼──────────────────────────┘
+                                   │
+                                   ▼
+                          ┌────────────────┐
+                          │ New Inventory  │
+                          │ Microservice   │
+                          └────────────────┘
+```
+
+---
+
+## Anti-Patterns to Avoid
+
+### Distributed Monolith
+
+```
+❌ Services tightly coupled
+   ┌─────┐    sync    ┌─────┐    sync    ┌─────┐
+   │ Svc │───────────▶│ Svc │───────────▶│ Svc │
+   │  A  │◀───────────│  B  │◀───────────│  C  │
+   └─────┘            └─────┘            └─────┘
+   
+   - Synchronous calls everywhere
+   - Shared database
+   - Coupled deployments
+   - Worst of both worlds
+```
+
+### Premature Decomposition
+
+```
+❌ Starting with microservices
+   - Unknown domain boundaries
+   - Over-engineering
+   - Excessive coordination
+
+✅ Start with modular monolith
+   - Clear module boundaries
+   - Extract when necessary
+   - Proven domain model
+```
+
+### Wrong Boundaries
+
+| Problem | Solution |
+|---------|----------|
+| **Too fine-grained** | Merge related services |
+| **Data coupling** | Re-examine boundaries |
+| **Circular dependencies** | Extract shared service |
+| **Chatty services** | Batch operations, merge |
+
+---
+
+## Success Criteria
+
+### Metrics to Track
+
+| Metric | Target |
+|--------|--------|
+| **Deployment frequency** | Increase |
+| **Lead time** | Decrease |
+| **Failure rate** | Decrease |
+| **Recovery time** | Decrease |
+| **Team autonomy** | Increase |
+
+### Checklist
+
+- [ ] Clear domain boundaries identified?
+- [ ] Incremental migration plan?
+- [ ] API contracts defined?
+- [ ] Data migration strategy?
+- [ ] Monitoring in place?
+- [ ] Rollback plan?
+- [ ] Team structure aligned?
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"When would you NOT recommend microservices?"**
+   - Small team (less than 10)
+   - Early stage, requirements unclear
+   - Simple domain
+   - No operational maturity
+
+2. **"How do you identify service boundaries?"**
+   - Domain-Driven Design
+   - Event Storming
+   - Team structure (Conway's Law)
+   - Analyze coupling and cohesion
+
+3. **"How do you handle data consistency?"**
+   - Saga pattern for distributed transactions
+   - Eventual consistency
+   - Outbox pattern for reliable events
+   - Single owner per data entity
+
+### Migration Checklist
+
+```
+✓ Business alignment (why microservices?)
+✓ Domain boundaries identified
+✓ Team structure supports autonomy
+✓ Operational capabilities ready
+  - CI/CD per service
+  - Monitoring/observability
+  - Service mesh/discovery
+✓ Incremental migration plan
+✓ Success metrics defined
+```

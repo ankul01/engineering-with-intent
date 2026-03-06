@@ -1,0 +1,1153 @@
+---
+title: "Low-Level Design (LLD)"
+description: "Object-oriented design, SOLID principles, design patterns, and common interview problems."
+---
+
+# Low-Level Design (LLD)
+
+Low-Level Design focuses on class-level architecture, object relationships, and implementation details. It tests your ability to design clean, extensible, and maintainable code.
+
+## LLD Interview Framework
+
+### Step-by-Step Approach
+
+```
+1. Requirements (3-5 min)
+   ├── Functional: What should the system do?
+   ├── Constraints: Scale, users, edge cases?
+   └── Clarify ambiguities
+
+2. Core Entities (5 min)
+   ├── Identify nouns → Classes
+   ├── Identify verbs → Methods
+   └── Identify adjectives → Attributes
+
+3. Relationships (5 min)
+   ├── Is-A (Inheritance)
+   ├── Has-A (Composition)
+   └── Uses (Dependency)
+
+4. Design Patterns (5 min)
+   ├── Which patterns apply?
+   └── Justify choices
+
+5. Class Diagram (10 min)
+   ├── Classes with attributes/methods
+   ├── Relationships and cardinality
+   └── Interfaces and abstract classes
+
+6. Code Implementation (15-20 min)
+   ├── Core classes
+   ├── Key methods
+   └── Handle edge cases
+```
+
+---
+
+## SOLID Principles
+
+### Single Responsibility (SRP)
+
+A class should have only one reason to change.
+
+```java
+// ❌ Bad: Multiple responsibilities
+class UserService {
+    void createUser(User user) { /* ... */ }
+    void sendEmail(User user, String message) { /* ... */ }
+    void generateReport(List<User> users) { /* ... */ }
+}
+
+// ✅ Good: Single responsibility each
+class UserService {
+    void createUser(User user) { /* ... */ }
+}
+
+class EmailService {
+    void sendEmail(User user, String message) { /* ... */ }
+}
+
+class ReportService {
+    void generateUserReport(List<User> users) { /* ... */ }
+}
+```
+
+### Open/Closed (OCP)
+
+Open for extension, closed for modification.
+
+```java
+// ❌ Bad: Must modify class to add new payment type
+class PaymentProcessor {
+    void process(Payment payment) {
+        if (payment.type == "CREDIT") { /* ... */ }
+        else if (payment.type == "DEBIT") { /* ... */ }
+        else if (payment.type == "UPI") { /* ... */ }  // New type = modify
+    }
+}
+
+// ✅ Good: Extend without modifying
+interface PaymentHandler {
+    void process(Payment payment);
+}
+
+class CreditCardHandler implements PaymentHandler { /* ... */ }
+class DebitCardHandler implements PaymentHandler { /* ... */ }
+class UPIHandler implements PaymentHandler { /* ... */ }  // New type = new class
+```
+
+### Liskov Substitution (LSP)
+
+Subtypes must be substitutable for their base types.
+
+```java
+// ❌ Bad: Square violates Rectangle contract
+class Rectangle {
+    protected int width, height;
+    void setWidth(int w) { width = w; }
+    void setHeight(int h) { height = h; }
+    int area() { return width * height; }
+}
+
+class Square extends Rectangle {
+    void setWidth(int w) { width = w; height = w; }  // Breaks expectation
+    void setHeight(int h) { width = h; height = h; }
+}
+
+// ✅ Good: Separate abstractions
+interface Shape {
+    int area();
+}
+
+class Rectangle implements Shape { /* ... */ }
+class Square implements Shape { /* ... */ }
+```
+
+### Interface Segregation (ISP)
+
+Clients shouldn't depend on interfaces they don't use.
+
+```java
+// ❌ Bad: Fat interface
+interface Worker {
+    void work();
+    void eat();
+    void sleep();
+}
+
+class Robot implements Worker {
+    void work() { /* ... */ }
+    void eat() { /* Robots don't eat! */ }   // Forced to implement
+    void sleep() { /* Robots don't sleep! */ }
+}
+
+// ✅ Good: Segregated interfaces
+interface Workable { void work(); }
+interface Eatable { void eat(); }
+interface Sleepable { void sleep(); }
+
+class Human implements Workable, Eatable, Sleepable { /* ... */ }
+class Robot implements Workable { /* ... */ }
+```
+
+### Dependency Inversion (DIP)
+
+Depend on abstractions, not concretions.
+
+```java
+// ❌ Bad: High-level depends on low-level
+class OrderService {
+    private MySQLDatabase database = new MySQLDatabase();
+    
+    void saveOrder(Order order) {
+        database.save(order);  // Tightly coupled
+    }
+}
+
+// ✅ Good: Depend on abstraction
+interface Database {
+    void save(Object entity);
+}
+
+class OrderService {
+    private Database database;  // Abstraction
+    
+    OrderService(Database database) {
+        this.database = database;  // Injected
+    }
+    
+    void saveOrder(Order order) {
+        database.save(order);
+    }
+}
+```
+
+---
+
+## Essential Design Patterns
+
+### Creational Patterns
+
+#### Singleton
+
+Ensure only one instance exists.
+
+```java
+class DatabaseConnection {
+    private static volatile DatabaseConnection instance;
+    
+    private DatabaseConnection() {}
+    
+    public static DatabaseConnection getInstance() {
+        if (instance == null) {
+            synchronized (DatabaseConnection.class) {
+                if (instance == null) {
+                    instance = new DatabaseConnection();
+                }
+            }
+        }
+        return instance;
+    }
+}
+```
+
+**Use when**: Shared resource (DB connection, config, logger)
+
+#### Factory
+
+Create objects without specifying exact class.
+
+```java
+interface Vehicle { void drive(); }
+
+class Car implements Vehicle { /* ... */ }
+class Motorcycle implements Vehicle { /* ... */ }
+
+class VehicleFactory {
+    static Vehicle create(String type) {
+        return switch (type) {
+            case "CAR" -> new Car();
+            case "MOTORCYCLE" -> new Motorcycle();
+            default -> throw new IllegalArgumentException();
+        };
+    }
+}
+
+// Usage
+Vehicle vehicle = VehicleFactory.create("CAR");
+```
+
+**Use when**: Object creation logic is complex or varies by type
+
+#### Builder
+
+Construct complex objects step by step.
+
+```java
+class Pizza {
+    private String size;
+    private boolean cheese;
+    private boolean pepperoni;
+    private boolean mushrooms;
+    
+    private Pizza(Builder builder) {
+        this.size = builder.size;
+        this.cheese = builder.cheese;
+        this.pepperoni = builder.pepperoni;
+        this.mushrooms = builder.mushrooms;
+    }
+    
+    static class Builder {
+        private String size;
+        private boolean cheese;
+        private boolean pepperoni;
+        private boolean mushrooms;
+        
+        Builder(String size) { this.size = size; }
+        Builder cheese() { this.cheese = true; return this; }
+        Builder pepperoni() { this.pepperoni = true; return this; }
+        Builder mushrooms() { this.mushrooms = true; return this; }
+        Pizza build() { return new Pizza(this); }
+    }
+}
+
+// Usage
+Pizza pizza = new Pizza.Builder("LARGE")
+    .cheese()
+    .pepperoni()
+    .build();
+```
+
+**Use when**: Object has many optional parameters
+
+### Structural Patterns
+
+#### Adapter
+
+Convert interface to another interface clients expect.
+
+```java
+// Existing interface
+interface MediaPlayer {
+    void play(String filename);
+}
+
+// New interface we need to adapt
+interface AdvancedMediaPlayer {
+    void playVlc(String filename);
+    void playMp4(String filename);
+}
+
+// Adapter
+class MediaAdapter implements MediaPlayer {
+    private AdvancedMediaPlayer advancedPlayer;
+    
+    MediaAdapter(String audioType) {
+        if (audioType.equals("vlc")) {
+            advancedPlayer = new VlcPlayer();
+        } else if (audioType.equals("mp4")) {
+            advancedPlayer = new Mp4Player();
+        }
+    }
+    
+    public void play(String filename) {
+        if (filename.endsWith(".vlc")) {
+            advancedPlayer.playVlc(filename);
+        } else if (filename.endsWith(".mp4")) {
+            advancedPlayer.playMp4(filename);
+        }
+    }
+}
+```
+
+**Use when**: Integrating incompatible interfaces
+
+#### Decorator
+
+Add behavior dynamically without modifying class.
+
+```java
+interface Coffee {
+    double cost();
+    String description();
+}
+
+class SimpleCoffee implements Coffee {
+    public double cost() { return 2.0; }
+    public String description() { return "Coffee"; }
+}
+
+abstract class CoffeeDecorator implements Coffee {
+    protected Coffee coffee;
+    CoffeeDecorator(Coffee coffee) { this.coffee = coffee; }
+}
+
+class MilkDecorator extends CoffeeDecorator {
+    MilkDecorator(Coffee coffee) { super(coffee); }
+    public double cost() { return coffee.cost() + 0.5; }
+    public String description() { return coffee.description() + ", Milk"; }
+}
+
+class SugarDecorator extends CoffeeDecorator {
+    SugarDecorator(Coffee coffee) { super(coffee); }
+    public double cost() { return coffee.cost() + 0.2; }
+    public String description() { return coffee.description() + ", Sugar"; }
+}
+
+// Usage
+Coffee coffee = new SugarDecorator(new MilkDecorator(new SimpleCoffee()));
+// "Coffee, Milk, Sugar" - $2.70
+```
+
+**Use when**: Add responsibilities dynamically, avoid subclass explosion
+
+### Behavioral Patterns
+
+#### Strategy
+
+Define family of algorithms, make them interchangeable.
+
+```java
+interface PaymentStrategy {
+    void pay(int amount);
+}
+
+class CreditCardPayment implements PaymentStrategy {
+    public void pay(int amount) {
+        System.out.println("Paid " + amount + " via Credit Card");
+    }
+}
+
+class UPIPayment implements PaymentStrategy {
+    public void pay(int amount) {
+        System.out.println("Paid " + amount + " via UPI");
+    }
+}
+
+class ShoppingCart {
+    private PaymentStrategy paymentStrategy;
+    
+    void setPaymentStrategy(PaymentStrategy strategy) {
+        this.paymentStrategy = strategy;
+    }
+    
+    void checkout(int amount) {
+        paymentStrategy.pay(amount);
+    }
+}
+
+// Usage
+ShoppingCart cart = new ShoppingCart();
+cart.setPaymentStrategy(new CreditCardPayment());
+cart.checkout(100);
+```
+
+**Use when**: Multiple algorithms for same task, switch at runtime
+
+#### Observer
+
+Notify dependents when state changes.
+
+```java
+interface Observer {
+    void update(String message);
+}
+
+class Subject {
+    private List<Observer> observers = new ArrayList<>();
+    
+    void attach(Observer observer) { observers.add(observer); }
+    void detach(Observer observer) { observers.remove(observer); }
+    
+    void notifyObservers(String message) {
+        for (Observer observer : observers) {
+            observer.update(message);
+        }
+    }
+}
+
+class StockPrice extends Subject {
+    private double price;
+    
+    void setPrice(double price) {
+        this.price = price;
+        notifyObservers("Price changed to: " + price);
+    }
+}
+
+class Investor implements Observer {
+    public void update(String message) {
+        System.out.println("Investor notified: " + message);
+    }
+}
+```
+
+**Use when**: One-to-many dependency, event systems
+
+#### State
+
+Allow object to alter behavior when state changes.
+
+```java
+interface State {
+    void handle(Context context);
+}
+
+class Context {
+    private State state;
+    
+    void setState(State state) { this.state = state; }
+    void request() { state.handle(this); }
+}
+
+class OrderedState implements State {
+    public void handle(Context context) {
+        System.out.println("Order placed, processing...");
+        context.setState(new ShippedState());
+    }
+}
+
+class ShippedState implements State {
+    public void handle(Context context) {
+        System.out.println("Order shipped, in transit...");
+        context.setState(new DeliveredState());
+    }
+}
+
+class DeliveredState implements State {
+    public void handle(Context context) {
+        System.out.println("Order delivered!");
+    }
+}
+```
+
+**Use when**: Object behavior depends on state, complex state transitions
+
+### Pattern Selection Guide
+
+| Problem | Pattern |
+|---------|---------|
+| Create one instance | Singleton |
+| Create objects by type | Factory |
+| Complex object construction | Builder |
+| Incompatible interfaces | Adapter |
+| Add behavior dynamically | Decorator |
+| Interchangeable algorithms | Strategy |
+| Notify on state change | Observer |
+| State-dependent behavior | State |
+| Undo/Redo operations | Command |
+| Access collection elements | Iterator |
+
+---
+
+## LLD Problem: Parking Lot
+
+### Requirements
+
+- Multiple floors, each with parking spots
+- Different spot sizes (Compact, Regular, Large)
+- Different vehicle types (Motorcycle, Car, Truck)
+- Track occupied/available spots
+- Entry/exit with ticketing
+
+### Class Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        ParkingLot                               │
+├─────────────────────────────────────────────────────────────────┤
+│ - floors: List<Floor>                                           │
+│ - entryPanels: List<EntryPanel>                                 │
+│ - exitPanels: List<ExitPanel>                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ + getAvailableSpot(vehicleType): ParkingSpot                    │
+│ + parkVehicle(vehicle): Ticket                                  │
+│ + unparkVehicle(ticket): Payment                                │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ has many
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                          Floor                                   │
+├─────────────────────────────────────────────────────────────────┤
+│ - floorNumber: int                                              │
+│ - spots: List<ParkingSpot>                                      │
+├─────────────────────────────────────────────────────────────────┤
+│ + getAvailableSpots(spotType): List<ParkingSpot>                │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ has many
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       ParkingSpot                                │
+├─────────────────────────────────────────────────────────────────┤
+│ - spotId: String                                                │
+│ - spotType: SpotType                                            │
+│ - isOccupied: boolean                                           │
+│ - vehicle: Vehicle                                              │
+├─────────────────────────────────────────────────────────────────┤
+│ + park(vehicle): boolean                                        │
+│ + unpark(): Vehicle                                             │
+│ + canFit(vehicleType): boolean                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌────────────────┐     ┌────────────────┐     ┌────────────────┐
+│   <<enum>>     │     │   <<enum>>     │     │    Vehicle     │
+│   SpotType     │     │  VehicleType   │     │  (abstract)    │
+├────────────────┤     ├────────────────┤     ├────────────────┤
+│ COMPACT        │     │ MOTORCYCLE     │     │ - licensePlate │
+│ REGULAR        │     │ CAR            │     │ - type         │
+│ LARGE          │     │ TRUCK          │     └────────────────┘
+└────────────────┘     └────────────────┘            △
+                                              ┌──────┼──────┐
+                                              │      │      │
+                                          ┌───┴──┐┌──┴──┐┌──┴───┐
+                                          │Motor-││ Car ││Truck │
+                                          │cycle │└─────┘└──────┘
+                                          └──────┘
+```
+
+### Implementation
+
+```java
+enum SpotType { COMPACT, REGULAR, LARGE }
+enum VehicleType { MOTORCYCLE, CAR, TRUCK }
+
+abstract class Vehicle {
+    protected String licensePlate;
+    protected VehicleType type;
+    
+    Vehicle(String licensePlate, VehicleType type) {
+        this.licensePlate = licensePlate;
+        this.type = type;
+    }
+    
+    VehicleType getType() { return type; }
+}
+
+class Car extends Vehicle {
+    Car(String licensePlate) {
+        super(licensePlate, VehicleType.CAR);
+    }
+}
+
+class ParkingSpot {
+    private String spotId;
+    private SpotType spotType;
+    private boolean isOccupied;
+    private Vehicle vehicle;
+    
+    ParkingSpot(String spotId, SpotType spotType) {
+        this.spotId = spotId;
+        this.spotType = spotType;
+        this.isOccupied = false;
+    }
+    
+    boolean canFit(VehicleType vehicleType) {
+        return switch (vehicleType) {
+            case MOTORCYCLE -> true;  // Fits anywhere
+            case CAR -> spotType != SpotType.COMPACT;
+            case TRUCK -> spotType == SpotType.LARGE;
+        };
+    }
+    
+    synchronized boolean park(Vehicle vehicle) {
+        if (isOccupied || !canFit(vehicle.getType())) {
+            return false;
+        }
+        this.vehicle = vehicle;
+        this.isOccupied = true;
+        return true;
+    }
+    
+    synchronized Vehicle unpark() {
+        Vehicle v = this.vehicle;
+        this.vehicle = null;
+        this.isOccupied = false;
+        return v;
+    }
+    
+    boolean isAvailable() { return !isOccupied; }
+}
+
+class Floor {
+    private int floorNumber;
+    private List<ParkingSpot> spots;
+    
+    Floor(int floorNumber, int compactSpots, int regularSpots, int largeSpots) {
+        this.floorNumber = floorNumber;
+        this.spots = new ArrayList<>();
+        
+        for (int i = 0; i < compactSpots; i++) {
+            spots.add(new ParkingSpot(floorNumber + "-C" + i, SpotType.COMPACT));
+        }
+        for (int i = 0; i < regularSpots; i++) {
+            spots.add(new ParkingSpot(floorNumber + "-R" + i, SpotType.REGULAR));
+        }
+        for (int i = 0; i < largeSpots; i++) {
+            spots.add(new ParkingSpot(floorNumber + "-L" + i, SpotType.LARGE));
+        }
+    }
+    
+    ParkingSpot findAvailableSpot(VehicleType vehicleType) {
+        return spots.stream()
+            .filter(ParkingSpot::isAvailable)
+            .filter(spot -> spot.canFit(vehicleType))
+            .findFirst()
+            .orElse(null);
+    }
+}
+
+class Ticket {
+    private String ticketId;
+    private Vehicle vehicle;
+    private ParkingSpot spot;
+    private LocalDateTime entryTime;
+    
+    Ticket(Vehicle vehicle, ParkingSpot spot) {
+        this.ticketId = UUID.randomUUID().toString();
+        this.vehicle = vehicle;
+        this.spot = spot;
+        this.entryTime = LocalDateTime.now();
+    }
+    
+    // Getters...
+}
+
+class ParkingLot {
+    private static ParkingLot instance;
+    private List<Floor> floors;
+    private Map<String, Ticket> activeTickets;
+    
+    private ParkingLot() {
+        this.floors = new ArrayList<>();
+        this.activeTickets = new ConcurrentHashMap<>();
+    }
+    
+    public static synchronized ParkingLot getInstance() {
+        if (instance == null) {
+            instance = new ParkingLot();
+        }
+        return instance;
+    }
+    
+    void addFloor(Floor floor) {
+        floors.add(floor);
+    }
+    
+    Ticket parkVehicle(Vehicle vehicle) {
+        for (Floor floor : floors) {
+            ParkingSpot spot = floor.findAvailableSpot(vehicle.getType());
+            if (spot != null && spot.park(vehicle)) {
+                Ticket ticket = new Ticket(vehicle, spot);
+                activeTickets.put(ticket.getTicketId(), ticket);
+                return ticket;
+            }
+        }
+        throw new RuntimeException("No available spot");
+    }
+    
+    double unparkVehicle(String ticketId) {
+        Ticket ticket = activeTickets.remove(ticketId);
+        if (ticket == null) {
+            throw new RuntimeException("Invalid ticket");
+        }
+        ticket.getSpot().unpark();
+        return calculateFee(ticket);
+    }
+    
+    private double calculateFee(Ticket ticket) {
+        long hours = Duration.between(
+            ticket.getEntryTime(), 
+            LocalDateTime.now()
+        ).toHours() + 1;
+        return hours * 10.0;  // $10 per hour
+    }
+}
+```
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Singleton ParkingLot | Single parking lot instance |
+| Strategy for pricing | Different rates for different vehicle types |
+| Synchronized parking | Thread-safe spot allocation |
+| Composition over inheritance | Floor has Spots, not extends |
+
+---
+
+## LLD Problem: Elevator System
+
+### Requirements
+
+- Multiple elevators in a building
+- Handle requests from floors
+- Optimize for minimum wait time
+- Handle concurrent requests
+
+### Class Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     ElevatorController                          │
+├─────────────────────────────────────────────────────────────────┤
+│ - elevators: List<Elevator>                                     │
+│ - strategy: ElevatorSelectionStrategy                           │
+├─────────────────────────────────────────────────────────────────┤
+│ + requestElevator(floor, direction): void                       │
+│ + selectElevator(request): Elevator                             │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ manages
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                         Elevator                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ - id: int                                                       │
+│ - currentFloor: int                                             │
+│ - direction: Direction                                          │
+│ - state: ElevatorState                                          │
+│ - requests: PriorityQueue<Request>                              │
+├─────────────────────────────────────────────────────────────────┤
+│ + addRequest(floor): void                                       │
+│ + move(): void                                                  │
+│ + openDoors(): void                                             │
+│ + closeDoors(): void                                            │
+└─────────────────────────────────────────────────────────────────┘
+
+┌────────────────────────────┐     ┌────────────────────────────┐
+│ <<interface>>              │     │        <<enum>>            │
+│ ElevatorSelectionStrategy  │     │        Direction           │
+├────────────────────────────┤     ├────────────────────────────┤
+│ + select(elevators,        │     │ UP                         │
+│          request): Elevator│     │ DOWN                       │
+└────────────────────────────┘     │ IDLE                       │
+         △                         └────────────────────────────┘
+    ┌────┴────┐
+    │         │
+┌───┴───┐ ┌───┴────┐
+│Nearest│ │  LOOK  │
+│ First │ │Algorithm│
+└───────┘ └────────┘
+```
+
+### Implementation
+
+```java
+enum Direction { UP, DOWN, IDLE }
+enum ElevatorState { MOVING, STOPPED, IDLE }
+
+class Request {
+    private int floor;
+    private Direction direction;
+    private long timestamp;
+    
+    Request(int floor, Direction direction) {
+        this.floor = floor;
+        this.direction = direction;
+        this.timestamp = System.currentTimeMillis();
+    }
+    
+    // Getters...
+}
+
+class Elevator {
+    private int id;
+    private int currentFloor;
+    private Direction direction;
+    private ElevatorState state;
+    private TreeSet<Integer> upStops;
+    private TreeSet<Integer> downStops;
+    
+    Elevator(int id) {
+        this.id = id;
+        this.currentFloor = 0;
+        this.direction = Direction.IDLE;
+        this.state = ElevatorState.IDLE;
+        this.upStops = new TreeSet<>();
+        this.downStops = new TreeSet<>(Collections.reverseOrder());
+    }
+    
+    synchronized void addRequest(int floor) {
+        if (floor > currentFloor) {
+            upStops.add(floor);
+        } else if (floor < currentFloor) {
+            downStops.add(floor);
+        }
+        
+        if (state == ElevatorState.IDLE) {
+            determineDirection();
+        }
+    }
+    
+    void move() {
+        while (!upStops.isEmpty() || !downStops.isEmpty()) {
+            if (direction == Direction.UP) {
+                processUpRequests();
+            } else if (direction == Direction.DOWN) {
+                processDownRequests();
+            }
+        }
+        state = ElevatorState.IDLE;
+        direction = Direction.IDLE;
+    }
+    
+    private void processUpRequests() {
+        while (!upStops.isEmpty()) {
+            int nextFloor = upStops.pollFirst();
+            moveToFloor(nextFloor);
+            openDoors();
+            closeDoors();
+        }
+        if (!downStops.isEmpty()) {
+            direction = Direction.DOWN;
+        }
+    }
+    
+    private void processDownRequests() {
+        while (!downStops.isEmpty()) {
+            int nextFloor = downStops.pollFirst();
+            moveToFloor(nextFloor);
+            openDoors();
+            closeDoors();
+        }
+        if (!upStops.isEmpty()) {
+            direction = Direction.UP;
+        }
+    }
+    
+    private void moveToFloor(int floor) {
+        state = ElevatorState.MOVING;
+        // Simulate movement
+        while (currentFloor != floor) {
+            currentFloor += (floor > currentFloor) ? 1 : -1;
+            System.out.println("Elevator " + id + " at floor " + currentFloor);
+        }
+        state = ElevatorState.STOPPED;
+    }
+    
+    private void determineDirection() {
+        if (!upStops.isEmpty() && !downStops.isEmpty()) {
+            // Go to nearest
+            int upDist = upStops.first() - currentFloor;
+            int downDist = currentFloor - downStops.first();
+            direction = (upDist <= downDist) ? Direction.UP : Direction.DOWN;
+        } else if (!upStops.isEmpty()) {
+            direction = Direction.UP;
+        } else if (!downStops.isEmpty()) {
+            direction = Direction.DOWN;
+        }
+    }
+    
+    void openDoors() { System.out.println("Doors opening..."); }
+    void closeDoors() { System.out.println("Doors closing..."); }
+    
+    int getCurrentFloor() { return currentFloor; }
+    Direction getDirection() { return direction; }
+    boolean isIdle() { return state == ElevatorState.IDLE; }
+}
+
+// Strategy Pattern for elevator selection
+interface ElevatorSelectionStrategy {
+    Elevator select(List<Elevator> elevators, Request request);
+}
+
+class NearestElevatorStrategy implements ElevatorSelectionStrategy {
+    public Elevator select(List<Elevator> elevators, Request request) {
+        return elevators.stream()
+            .min(Comparator.comparingInt(e -> 
+                Math.abs(e.getCurrentFloor() - request.getFloor())))
+            .orElse(null);
+    }
+}
+
+class LOOKAlgorithmStrategy implements ElevatorSelectionStrategy {
+    public Elevator select(List<Elevator> elevators, Request request) {
+        // Prefer elevators moving in same direction
+        return elevators.stream()
+            .filter(e -> e.isIdle() || 
+                (e.getDirection() == request.getDirection() &&
+                 isOnTheWay(e, request)))
+            .min(Comparator.comparingInt(e -> 
+                Math.abs(e.getCurrentFloor() - request.getFloor())))
+            .orElseGet(() -> new NearestElevatorStrategy()
+                .select(elevators, request));
+    }
+    
+    private boolean isOnTheWay(Elevator e, Request r) {
+        if (e.getDirection() == Direction.UP) {
+            return r.getFloor() >= e.getCurrentFloor();
+        }
+        return r.getFloor() <= e.getCurrentFloor();
+    }
+}
+
+class ElevatorController {
+    private List<Elevator> elevators;
+    private ElevatorSelectionStrategy strategy;
+    
+    ElevatorController(int numElevators, ElevatorSelectionStrategy strategy) {
+        this.elevators = new ArrayList<>();
+        for (int i = 0; i < numElevators; i++) {
+            elevators.add(new Elevator(i));
+        }
+        this.strategy = strategy;
+    }
+    
+    void requestElevator(int floor, Direction direction) {
+        Request request = new Request(floor, direction);
+        Elevator elevator = strategy.select(elevators, request);
+        elevator.addRequest(floor);
+    }
+}
+```
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Strategy pattern | Pluggable elevator selection algorithms |
+| LOOK algorithm | Efficient disk-scheduling inspired approach |
+| Separate up/down queues | Process requests in optimal order |
+| State machine | Clear elevator state transitions |
+
+---
+
+## LLD Problem: Library Management
+
+### Requirements
+
+- Add/search/borrow/return books
+- Track member borrowing history
+- Handle reservations
+- Fine calculation for late returns
+
+### Core Classes
+
+```java
+class Book {
+    private String isbn;
+    private String title;
+    private String author;
+    private List<BookCopy> copies;
+    
+    BookCopy getAvailableCopy() {
+        return copies.stream()
+            .filter(BookCopy::isAvailable)
+            .findFirst()
+            .orElse(null);
+    }
+}
+
+class BookCopy {
+    private String copyId;
+    private Book book;
+    private BookStatus status;
+    private Member borrowedBy;
+    private LocalDate dueDate;
+    
+    boolean isAvailable() { 
+        return status == BookStatus.AVAILABLE; 
+    }
+    
+    void checkout(Member member, int days) {
+        this.borrowedBy = member;
+        this.status = BookStatus.BORROWED;
+        this.dueDate = LocalDate.now().plusDays(days);
+    }
+    
+    double returnBook() {
+        this.status = BookStatus.AVAILABLE;
+        double fine = calculateFine();
+        this.borrowedBy = null;
+        this.dueDate = null;
+        return fine;
+    }
+    
+    private double calculateFine() {
+        if (dueDate == null || !LocalDate.now().isAfter(dueDate)) {
+            return 0;
+        }
+        long overdueDays = ChronoUnit.DAYS.between(dueDate, LocalDate.now());
+        return overdueDays * 1.0;  // $1 per day
+    }
+}
+
+class Member {
+    private String memberId;
+    private String name;
+    private List<BookCopy> borrowedBooks;
+    private List<Reservation> reservations;
+    private static final int MAX_BOOKS = 5;
+    
+    boolean canBorrow() {
+        return borrowedBooks.size() < MAX_BOOKS;
+    }
+    
+    void borrowBook(BookCopy copy) {
+        if (!canBorrow()) {
+            throw new RuntimeException("Borrow limit reached");
+        }
+        borrowedBooks.add(copy);
+        copy.checkout(this, 14);  // 2 weeks
+    }
+}
+
+class Reservation {
+    private Member member;
+    private Book book;
+    private LocalDateTime reservedAt;
+    private ReservationStatus status;
+}
+
+class Library {
+    private Map<String, Book> books;  // ISBN -> Book
+    private Map<String, Member> members;
+    private Queue<Reservation> reservationQueue;
+    
+    void addBook(Book book) {
+        books.put(book.getIsbn(), book);
+    }
+    
+    List<Book> searchByTitle(String title) {
+        return books.values().stream()
+            .filter(b -> b.getTitle().toLowerCase()
+                .contains(title.toLowerCase()))
+            .collect(Collectors.toList());
+    }
+    
+    void borrowBook(String memberId, String isbn) {
+        Member member = members.get(memberId);
+        Book book = books.get(isbn);
+        BookCopy copy = book.getAvailableCopy();
+        
+        if (copy == null) {
+            // Add to reservation queue
+            reservationQueue.add(new Reservation(member, book));
+            throw new RuntimeException("Book not available, added to waitlist");
+        }
+        
+        member.borrowBook(copy);
+    }
+    
+    double returnBook(String memberId, String copyId) {
+        // Find and return book, calculate fine
+        // Notify next person in reservation queue
+    }
+}
+```
+
+---
+
+## Interview Quick Reference
+
+### Common LLD Problems
+
+| Problem | Key Patterns | Key Classes |
+|---------|--------------|-------------|
+| Parking Lot | Singleton, Strategy | ParkingLot, Floor, Spot, Vehicle |
+| Elevator | State, Strategy, Observer | Elevator, Controller, Request |
+| Library | Factory, Observer | Library, Book, Member, Loan |
+| ATM | State, Chain of Responsibility | ATM, Account, Transaction |
+| Chess | State, Strategy, Factory | Board, Piece, Player, Move |
+| Tic-Tac-Toe | State | Board, Player, Game |
+| Hotel Booking | Factory, Observer | Hotel, Room, Booking, Guest |
+| Movie Ticket | Strategy, Factory | Theater, Show, Seat, Booking |
+
+### Design Checklist
+
+- [ ] Requirements clarified?
+- [ ] Core entities identified?
+- [ ] Relationships mapped (is-a, has-a)?
+- [ ] SOLID principles followed?
+- [ ] Appropriate patterns applied?
+- [ ] Edge cases handled?
+- [ ] Thread safety considered?
+- [ ] Extensibility planned?
+
+### Common Mistakes
+
+| Mistake | How to Avoid |
+|---------|--------------|
+| Jumping to code | Spend time on design first |
+| Over-engineering | Start simple, add complexity when needed |
+| Ignoring SOLID | Check each principle consciously |
+| Wrong pattern | Understand pattern intent, not just structure |
+| No encapsulation | Keep fields private, expose through methods |
+| Tight coupling | Depend on abstractions |
+
+### Quick Pattern Reference
+
+```
+Need one instance? → Singleton
+Create by type? → Factory
+Complex construction? → Builder
+Incompatible interface? → Adapter
+Add behavior dynamically? → Decorator
+Interchangeable algorithms? → Strategy
+State-dependent behavior? → State
+Notify on changes? → Observer
+Undo/redo? → Command
+Tree structures? → Composite
+```

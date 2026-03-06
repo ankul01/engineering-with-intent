@@ -1,0 +1,555 @@
+---
+title: "Tradeoffs"
+description: "CAP theorem, PACELC, consistency models, and architectural decision making in system design."
+---
+
+# Tradeoffs in System Design
+
+Every design decision involves tradeoffs. Understanding these tradeoffs and articulating them clearly is crucial for system design interviews and real-world architecture.
+
+## CAP Theorem
+
+In a distributed system, you can only guarantee two of three properties simultaneously.
+
+```
+                    Consistency
+                        ▲
+                       /│\
+                      / │ \
+                     /  │  \
+                    /   │   \
+                   /  CA│CP  \
+                  /     │     \
+                 /      │      \
+                ▼───────┴───────▼
+          Availability ───── Partition
+                              Tolerance
+```
+
+### The Three Properties
+
+| Property | Definition | Example |
+|----------|------------|---------|
+| **Consistency (C)** | Every read receives the most recent write | All nodes see same data at same time |
+| **Availability (A)** | Every request receives a response | System always responds (may be stale) |
+| **Partition Tolerance (P)** | System continues despite network failures | Works even if nodes can't communicate |
+
+### Why You Must Choose
+
+Network partitions **will** happen in distributed systems. When they do, you must choose:
+
+```
+Network Partition Occurs:
+┌──────────┐         X         ┌──────────┐
+│  Node A  │─────────X─────────│  Node B  │
+│  Data: 1 │         X         │  Data: 1 │
+└──────────┘         X         └──────────┘
+                     X
+Client writes "2" to Node A...
+
+Choice 1 - Consistency (CP):
+  Node A rejects write until partition heals
+  System unavailable but consistent
+
+Choice 2 - Availability (AP):
+  Node A accepts write, Node B has stale data
+  System available but inconsistent
+```
+
+### Real-World CAP Examples
+
+| System | Choice | Behavior |
+|--------|--------|----------|
+| **PostgreSQL** | CP | Rejects writes if replica unreachable |
+| **MongoDB (default)** | CP | Primary election, write unavailable during |
+| **Cassandra** | AP | Continues with eventual consistency |
+| **DynamoDB** | AP | Eventually consistent by default |
+| **ZooKeeper** | CP | Consensus required for operations |
+| **Redis Cluster** | AP | Allows writes during partition |
+
+### CAP in Practice
+
+Most systems aren't purely CP or AP—they make different choices for different operations:
+
+```
+User Profile Service:
+
+Reads: AP (serve stale data, high availability)
+  └── User sees slightly old profile, acceptable
+
+Writes: CP (ensure consistency)
+  └── Profile update must succeed correctly
+
+Payment Service:
+
+All operations: CP (never lose money)
+  └── Prefer unavailability over inconsistency
+```
+
+---
+
+## PACELC Theorem
+
+CAP only describes behavior during partitions. PACELC extends this:
+
+> If there's a **P**artition, choose between **A**vailability and **C**onsistency.
+> **E**lse (normal operation), choose between **L**atency and **C**onsistency.
+
+```
+                Is there a partition?
+                        │
+              ┌─────────┴─────────┐
+              │                   │
+             Yes                  No
+              │                   │
+         ┌────┴────┐         ┌────┴────┐
+         │         │         │         │
+      Choose A  Choose C  Choose L  Choose C
+         │         │         │         │
+        PA        PC        EL        EC
+```
+
+### PACELC Classifications
+
+| System | During Partition | Else (Normal) | Classification |
+|--------|-----------------|---------------|----------------|
+| **Cassandra** | Availability | Latency | PA/EL |
+| **DynamoDB** | Availability | Latency | PA/EL |
+| **MongoDB** | Consistency | Consistency | PC/EC |
+| **PostgreSQL** | Consistency | Consistency | PC/EC |
+| **Spanner** | Consistency | Latency | PC/EL |
+| **CockroachDB** | Consistency | Latency | PC/EL |
+
+### Why PACELC Matters
+
+```
+Scenario: E-commerce product catalog
+
+During normal operation (no partition):
+  Option 1: Strong consistency (EC)
+    - Every read sees latest price
+    - Higher latency (coordination required)
+    
+  Option 2: Low latency (EL)
+    - Reads might see 5-second-old price
+    - Sub-millisecond response
+
+Most e-commerce: Choose EL (latency) for reads
+  - Slightly stale price acceptable
+  - User experience > perfect consistency
+```
+
+---
+
+## Consistency Models
+
+Different levels of consistency with different guarantees and costs.
+
+### Consistency Spectrum
+
+```
+Strong                                                    Weak
+  ├─────────────────────────────────────────────────────────┤
+  │                                                         │
+Linearizable  Sequential  Causal  Read-your-  Eventual  
+              Consistency         writes
+              
+  ◄──── Higher latency, Lower throughput ────────────────►
+  ◄──── Easier to reason about ──────────────────────────►
+  ◄──── More coordination required ──────────────────────►
+```
+
+### Model Details
+
+#### Linearizability (Strongest)
+
+Operations appear instantaneous at some point between invocation and response.
+
+```
+Timeline:
+T1: Client A writes X=1 ──────────[  write  ]───────────
+T2:                      Client B reads X ──[read]──
+                                            Must see X=1
+```
+
+**Use when**: Correctness critical (leader election, locks, financial)
+
+#### Sequential Consistency
+
+All nodes see operations in the same order (but not necessarily real-time).
+
+```
+Client A: Write X=1, Write Y=2
+Client B: Write X=3
+
+Valid orderings:
+1. X=1, Y=2, X=3 → Final: X=3, Y=2
+2. X=1, X=3, Y=2 → Final: X=3, Y=2
+3. X=3, X=1, Y=2 → Final: X=1, Y=2
+
+All clients must see same ordering.
+```
+
+#### Causal Consistency
+
+Causally related operations seen in order; concurrent operations may differ.
+
+```
+Client A: Write X=1
+Client B: Reads X=1, then Writes Y=2 (caused by reading X)
+
+Guarantee: Anyone seeing Y=2 will also see X=1
+No guarantee about concurrent writes from Client C
+```
+
+**Use when**: Social feeds, comments, collaborative editing
+
+#### Read-Your-Writes
+
+Client always sees their own writes.
+
+```
+Client A: Write X=1
+Client A: Read X → Must return 1
+
+Other clients might still see old value.
+```
+
+**Use when**: User experience (profile updates, settings)
+
+#### Eventual Consistency
+
+Given no new updates, all replicas eventually converge.
+
+```
+T0: Write X=1 to primary
+T1: Read from replica → might return old value
+T2: Read from replica → might return old value
+...
+Tn: Read from replica → returns 1 (eventually)
+```
+
+**Use when**: High availability, scale (DNS, CDN, caches)
+
+### Comparison Table
+
+| Model | Coordination | Latency | Availability | Use Case |
+|-------|--------------|---------|--------------|----------|
+| Linearizable | High | High | Low | Locks, counters |
+| Sequential | Medium | Medium | Medium | Transactions |
+| Causal | Low | Low | High | Social apps |
+| Read-your-writes | Low | Low | High | User sessions |
+| Eventual | None | Lowest | Highest | Caches, DNS |
+
+---
+
+## Latency vs Throughput
+
+### Definitions
+
+```
+Latency: Time for single request
+  Request ──────[Processing]──────▶ Response
+          └────── 50ms ──────┘
+
+Throughput: Requests handled per unit time
+  ───────────────────────────────────────▶
+  │ │ │ │ │ │ │ │ │ │    = 10 req/sec
+```
+
+### The Tradeoff
+
+| Optimize For | Approach | Impact |
+|--------------|----------|--------|
+| **Low Latency** | Process immediately | Lower throughput |
+| **High Throughput** | Batch processing | Higher latency |
+
+```
+Scenario: Log ingestion
+
+Low Latency Approach:
+  Log entry → Immediately write to disk
+  Latency: 5ms per entry
+  Throughput: 200 entries/sec
+
+High Throughput Approach:
+  Log entries → Buffer 100 → Batch write
+  Latency: 500ms per entry
+  Throughput: 10,000 entries/sec
+```
+
+### When to Choose What
+
+| Prioritize Latency | Prioritize Throughput |
+|--------------------|----------------------|
+| User-facing APIs | Batch processing |
+| Real-time games | Data pipelines |
+| Trading systems | Log aggregation |
+| Live streaming | Report generation |
+| Search queries | ETL jobs |
+
+### Optimizing Both
+
+```
+Technique: Adaptive batching
+
+if queue_size > threshold OR wait_time > max_wait:
+    flush_batch()
+
+# Small batches during low traffic (low latency)
+# Large batches during high traffic (high throughput)
+```
+
+---
+
+## Cost vs Performance
+
+### The Tradeoff Spectrum
+
+```
+                    Cost
+                     │
+    Expensive but ◄──┼──► Cheap but
+    Fast/Reliable    │    Slow/Risky
+                     │
+```
+
+### Common Decisions
+
+| Decision | High Cost, High Performance | Low Cost, Lower Performance |
+|----------|---------------------------|----------------------------|
+| **Compute** | Dedicated instances | Spot/Preemptible instances |
+| **Database** | Provisioned IOPS | Standard storage |
+| **Caching** | Redis cluster | Application-level cache |
+| **CDN** | Premium tier, more PoPs | Basic tier |
+| **Replication** | Synchronous | Asynchronous |
+| **Monitoring** | APM with tracing | Basic metrics |
+
+### Cost Optimization Strategies
+
+```
+1. Right-sizing:
+   Over-provisioned: 8 CPU, 32GB → using 20%
+   Right-sized: 2 CPU, 8GB → using 80%
+   Savings: 75%
+
+2. Reserved capacity:
+   On-demand: $100/month
+   Reserved (1 year): $60/month
+   Savings: 40%
+
+3. Tiered storage:
+   Hot data (SSD): Recent 30 days
+   Cold data (HDD): Older data
+   Archive (Glacier): Rarely accessed
+```
+
+### When to Spend More
+
+| Scenario | Justification |
+|----------|---------------|
+| Revenue-critical path | Downtime = lost money |
+| User experience | Latency affects conversion |
+| Compliance requirements | Fines exceed cost |
+| Competitive advantage | Performance is differentiator |
+
+---
+
+## Simplicity vs Flexibility
+
+### The Tradeoff
+
+```
+Simple Architecture:
+┌──────┐     ┌────────┐     ┌──────┐
+│Client│────▶│Monolith│────▶│  DB  │
+└──────┘     └────────┘     └──────┘
+  Easy to understand, deploy, debug
+  Hard to scale specific parts
+
+Flexible Architecture:
+┌──────┐     ┌─────┐     ┌─────┐     ┌─────┐
+│Client│────▶│ API │────▶│Svc A│────▶│DB A │
+└──────┘     │ GW  │     └─────┘     └─────┘
+             └──┬──┘     ┌─────┐     ┌─────┐
+                └───────▶│Svc B│────▶│DB B │
+                         └─────┘     └─────┘
+  Can scale independently, technology diversity
+  Complex deployment, debugging, monitoring
+```
+
+### Decision Framework
+
+| Factor | Choose Simple | Choose Flexible |
+|--------|---------------|-----------------|
+| Team size | Small (< 10) | Large, multiple teams |
+| Domain | Well understood | Complex, evolving |
+| Scale | Moderate | High, variable |
+| Time to market | Critical | Can invest upfront |
+| Operational maturity | Low | High |
+
+### Avoiding Over-Engineering
+
+```
+YAGNI (You Aren't Gonna Need It):
+
+❌ "We might need microservices someday"
+   → Start with monolith, extract when needed
+
+❌ "Let's add Kafka for future event streaming"
+   → Start with simple queues, migrate when scale demands
+
+❌ "We need a plugin architecture for extensibility"
+   → Add extension points when actually needed
+
+✅ Design for today's requirements
+✅ Make it easy to change later
+✅ Add complexity when justified by real needs
+```
+
+---
+
+## Build vs Buy
+
+### Decision Matrix
+
+| Factor | Build | Buy |
+|--------|-------|-----|
+| **Core competency** | Yes, if differentiator | No, commodity features |
+| **Customization** | High needs | Standard works |
+| **Timeline** | Can wait | Need it now |
+| **Team expertise** | Have it | Would need to hire |
+| **Long-term cost** | Lower at scale | Lower initially |
+| **Maintenance** | Can staff | Vendor handles |
+
+### Examples
+
+| Component | Usually Build | Usually Buy |
+|-----------|---------------|-------------|
+| Core business logic | ✓ | |
+| Authentication | | ✓ (Auth0, Cognito) |
+| Payment processing | | ✓ (Stripe) |
+| Search | Sometimes | ✓ (Algolia, Elastic Cloud) |
+| Monitoring | | ✓ (Datadog, New Relic) |
+| Email sending | | ✓ (SendGrid, SES) |
+| ML infrastructure | Sometimes | ✓ (SageMaker) |
+
+### Hidden Costs
+
+```
+Build:
+- Development time
+- Ongoing maintenance
+- Security updates
+- Scaling expertise
+- On-call burden
+- Opportunity cost
+
+Buy:
+- Vendor lock-in
+- Per-usage costs at scale
+- Limited customization
+- Dependency on vendor roadmap
+- Integration effort
+```
+
+---
+
+## Synchronous vs Asynchronous
+
+### Comparison
+
+```
+Synchronous:
+┌──────┐  Request   ┌──────┐  Request   ┌──────┐
+│Svc A │───────────▶│Svc B │───────────▶│Svc C │
+│      │◀───────────│      │◀───────────│      │
+└──────┘  Response  └──────┘  Response  └──────┘
+  A waits for B, B waits for C
+  Total latency = A + B + C
+
+Asynchronous:
+┌──────┐  Event     ┌───────┐           ┌──────┐
+│Svc A │───────────▶│ Queue │──────────▶│Svc B │
+└──────┘            └───────┘           └──────┘
+  A continues immediately
+  B processes when ready
+```
+
+### When to Use
+
+| Synchronous | Asynchronous |
+|-------------|--------------|
+| Need immediate response | Fire and forget |
+| Simple request/response | Long-running tasks |
+| Strong consistency | Eventual consistency OK |
+| Low latency critical | Throughput critical |
+| Debugging simplicity | Decoupling needed |
+
+---
+
+## Interview Quick Reference
+
+### Framework for Discussing Tradeoffs
+
+```
+1. State the tradeoff clearly
+   "We're choosing between X and Y"
+
+2. Explain the context
+   "Given our requirements of..."
+
+3. Discuss both options
+   "Option A gives us... but costs..."
+   "Option B provides... but sacrifices..."
+
+4. Make a recommendation
+   "For this use case, I'd choose... because..."
+
+5. Acknowledge limitations
+   "This means we accept... as a tradeoff"
+```
+
+### Common Interview Tradeoffs
+
+| Scenario | Key Tradeoff | Typical Choice |
+|----------|--------------|----------------|
+| Banking system | Availability vs Consistency | Consistency |
+| Social media feed | Consistency vs Latency | Latency |
+| E-commerce inventory | Strong vs Eventual consistency | Eventual (with reservations) |
+| Gaming leaderboard | Real-time vs Cost | Near real-time (batched) |
+| Search engine | Freshness vs Performance | Performance (async indexing) |
+
+### Questions to Ask
+
+Before making tradeoff decisions, clarify:
+
+1. What are the consistency requirements?
+2. What latency is acceptable?
+3. What's the expected scale?
+4. What's the failure tolerance?
+5. What's the budget constraint?
+6. What does the team know?
+
+### Tradeoff Cheat Sheet
+
+| If you need... | You sacrifice... |
+|----------------|------------------|
+| Strong consistency | Latency, availability |
+| Low latency | Consistency, cost |
+| High availability | Consistency (during failures) |
+| Simplicity | Flexibility, some performance |
+| Cost efficiency | Performance, features |
+| Flexibility | Simplicity, time to market |
+
+### Red Flags in Interviews
+
+❌ "We can have both consistency AND availability"
+❌ "There's no tradeoff here"
+❌ "We'll just scale horizontally to solve it"
+❌ "Eventual consistency is always fine"
+❌ "Strong consistency is always needed"
+
+✅ "Given the requirements, the right tradeoff is..."
+✅ "We accept X limitation in exchange for Y benefit"
+✅ "We can revisit this decision when scale changes"

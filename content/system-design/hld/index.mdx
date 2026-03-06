@@ -1,0 +1,82 @@
+---
+title: "High-Level Design (HLD)"
+description: "End-to-end system architecture problems and solutions for senior engineering interviews."
+---
+
+# High-Level Design (HLD)
+
+High-Level Design focuses on the overall architecture of a system—identifying core components, their interactions, data flow, and scalability strategies.
+
+## Available Designs
+
+<TopicGrid>
+  <TopicCard
+    title="Rate Limiter"
+    description="Design a distributed rate limiting system to protect APIs from abuse and ensure fair usage."
+    href="/system-design/hld/rate-limiter"
+    status="complete"
+    topics={['Token Bucket', 'Redis', 'Distributed']}
+  />
+  <TopicCard
+    title="Last-Mile Delivery System"
+    description="Design a real-time delivery tracking platform like Zomato 10-min delivery with global scalability."
+    href="/system-design/hld/last-mile-delivery"
+    status="complete"
+    topics={['Real-time Tracking', 'Geo-spatial', 'Event-driven']}
+  />
+</TopicGrid>
+
+## Planned Designs
+
+<TopicGrid>
+  <TopicCard
+    title="URL Shortener"
+    description="Design a scalable URL shortening service like Bitly or TinyURL."
+    href="#"
+    status="planned"
+    topics={['Hashing', 'Redirection', 'Analytics']}
+  />
+  <TopicCard
+    title="Notification System"
+    description="Design a multi-channel notification system supporting push, email, SMS, and in-app."
+    href="#"
+    status="planned"
+    topics={['Priority Queues', 'Templates', 'Delivery']}
+  />
+  <TopicCard
+    title="Chat Application"
+    description="Design a real-time chat application like WhatsApp or Slack."
+    href="#"
+    status="planned"
+    topics={['WebSockets', 'Message Ordering', 'Presence']}
+  />
+  <TopicCard
+    title="Video Streaming Platform"
+    description="Design a video streaming service like YouTube or Netflix."
+    href="#"
+    status="planned"
+    topics={['CDN', 'Transcoding', 'Adaptive Bitrate']}
+  />
+</TopicGrid>
+
+## HLD Interview Framework
+
+### What Interviewers Look For
+
+| Aspect | What They Evaluate |
+|--------|-------------------|
+| **Requirement Analysis** | Can you ask the right questions? |
+| **System Decomposition** | Can you break down complex problems? |
+| **Component Design** | Do you understand core building blocks? |
+| **Scalability Thinking** | Can you design for growth? |
+| **Tradeoff Analysis** | Do you understand consequences of decisions? |
+| **Communication** | Can you articulate your design clearly? |
+
+### Common Mistakes to Avoid
+
+1. **Diving into details too early** – Start with the big picture
+2. **Ignoring requirements** – Always clarify before designing
+3. **Over-engineering** – Start simple, scale as needed
+4. **No capacity estimation** – Back-of-envelope math matters
+5. **Single points of failure** – Consider redundancy and failover
+6. **Ignoring operational aspects** – Monitoring, alerting, deployment

@@ -1,0 +1,379 @@
+---
+title: "Agile Delivery"
+description: "Scrum, Kanban, sprint ceremonies, and continuous improvement practices."
+---
+
+# Agile Delivery
+
+Agile methodologies help teams deliver value iteratively. This guide covers Scrum, Kanban, ceremonies, and continuous improvement.
+
+## Agile Fundamentals
+
+### Agile Values
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│               Agile Manifesto Values                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Individuals and interactions    over    Processes and tools│
+│                                                              │
+│  Working software               over    Comprehensive docs  │
+│                                                              │
+│  Customer collaboration         over    Contract negotiation│
+│                                                              │
+│  Responding to change           over    Following a plan    │
+│                                                              │
+│  (While there is value in the items on the right,           │
+│   we value the items on the left more.)                     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Agile Principles (Key Ones)
+
+| Principle | Application |
+|-----------|-------------|
+| **Deliver frequently** | Small batches, continuous delivery |
+| **Welcome change** | Adapt backlog to new information |
+| **Sustainable pace** | No death marches |
+| **Technical excellence** | Quality enables agility |
+| **Simplicity** | Maximize work not done |
+| **Self-organizing teams** | Empowered decision-making |
+
+---
+
+## Scrum
+
+### Scrum Framework
+
+```
+                    Product Backlog
+                          │
+                          ▼
+                    Sprint Planning
+                          │
+                    ┌─────▼─────┐
+                    │  Sprint   │ (1-4 weeks, typically 2)
+                    │  Backlog  │
+                    └─────┬─────┘
+                          │
+              ┌───────────┼───────────┐
+              │           │           │
+         Daily Scrum    Work     Refinement
+              │           │           │
+              └───────────┼───────────┘
+                          │
+                    ┌─────▼─────┐
+                    │ Increment │ (Potentially shippable)
+                    └─────┬─────┘
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+         Sprint Review          Sprint Retro
+```
+
+### Scrum Roles
+
+| Role | Responsibilities |
+|------|------------------|
+| **Product Owner** | Owns backlog, prioritization, stakeholder communication |
+| **Scrum Master** | Facilitates ceremonies, removes impediments, coaches |
+| **Development Team** | Self-organizing, cross-functional, delivers increment |
+
+### Scrum Ceremonies
+
+#### Sprint Planning
+
+```
+Duration: 2-4 hours for 2-week sprint
+
+Inputs:
+├── Prioritized backlog
+├── Team capacity
+├── Sprint goal from PO
+└── Previous velocity
+
+Outputs:
+├── Sprint goal
+├── Sprint backlog
+├── Task breakdown
+└── Commitment
+```
+
+#### Daily Standup
+
+```
+Duration: 15 minutes max
+Frequency: Daily, same time/place
+
+Format (walking the board):
+├── Start from Done column
+├── Discuss each item in progress
+├── Focus on flow, not status reports
+├── Identify blockers
+└── Take detailed discussions offline
+```
+
+#### Sprint Review
+
+```
+Duration: 1-2 hours
+
+Purpose: Inspect the increment, adapt backlog
+
+Agenda:
+├── Demo completed work
+├── Stakeholder feedback
+├── Product Owner shares upcoming priorities
+├── Discussion and Q&A
+└── Backlog updates based on feedback
+```
+
+#### Sprint Retrospective
+
+```
+Duration: 1-2 hours
+
+Purpose: Inspect process, adapt ways of working
+
+Common Formats:
+├── What went well / What didn't / Actions
+├── Start / Stop / Continue
+├── Sailboat (wind/anchor/rocks)
+└── 4Ls (Liked, Learned, Lacked, Longed for)
+
+Rules:
+├── Safe space
+├── Focus on process, not people
+├── Actionable outcomes
+└── Follow up on previous actions
+```
+
+---
+
+## Kanban
+
+### Kanban Board
+
+```
+┌─────────┬──────────┬──────────┬──────────┬─────────┐
+│ Backlog │   To Do  │   In     │  Review  │  Done   │
+│         │          │ Progress │          │         │
+├─────────┼──────────┼──────────┼──────────┼─────────┤
+│ [Card]  │ [Card]   │ [Card]   │ [Card]   │ [Card]  │
+│ [Card]  │ [Card]   │ [Card]   │          │ [Card]  │
+│ [Card]  │          │          │          │ [Card]  │
+│ [Card]  │          │          │          │         │
+├─────────┼──────────┼──────────┼──────────┼─────────┤
+│   -     │  WIP: 4  │  WIP: 3  │  WIP: 2  │    -    │
+└─────────┴──────────┴──────────┴──────────┴─────────┘
+```
+
+### Kanban Principles
+
+| Principle | Description |
+|-----------|-------------|
+| **Visualize work** | Make work and workflow visible |
+| **Limit WIP** | Cap work in progress to prevent overload |
+| **Manage flow** | Optimize for throughput |
+| **Make policies explicit** | Clear definitions of done, ready |
+| **Implement feedback loops** | Regular reviews and kaizen |
+| **Improve collaboratively** | Evolve experimentally |
+
+### WIP Limits
+
+```
+Why limit WIP:
+├── Reduces context switching
+├── Surfaces blockers faster
+├── Improves flow and throughput
+├── Makes problems visible
+└── Encourages collaboration
+
+Setting WIP limits:
+├── Start with # of team members
+├── Adjust based on observation
+├── Lower is usually better
+└── Review and iterate
+```
+
+### Kanban Metrics
+
+| Metric | What it Measures | Target |
+|--------|------------------|--------|
+| **Lead Time** | Request to delivery | Decrease |
+| **Cycle Time** | Start work to done | Decrease |
+| **Throughput** | Items completed per period | Stable/increase |
+| **WIP** | Items currently in progress | Within limits |
+| **Blocked Items** | Items waiting | Minimize |
+
+---
+
+## Scrum vs Kanban
+
+| Aspect | Scrum | Kanban |
+|--------|-------|--------|
+| **Cadence** | Fixed sprints | Continuous flow |
+| **Roles** | PO, SM, Dev Team | No prescribed roles |
+| **Planning** | Sprint-based | Continuous |
+| **Change** | Wait for next sprint | Any time |
+| **WIP** | Implicit (sprint commitment) | Explicit limits |
+| **Best for** | New teams, predictable delivery | Ops, support, variable work |
+
+### Scrumban (Hybrid)
+
+```
+Take from Scrum:
+├── Sprint planning (lighter)
+├── Retrospectives
+└── Timeboxed iterations
+
+Take from Kanban:
+├── WIP limits
+├── Continuous flow
+├── Pull-based work
+└── Visual board
+```
+
+---
+
+## Continuous Improvement
+
+### Retrospective Actions
+
+```
+Good Action Items:
+✅ Specific: "Create PR template with checklist"
+✅ Assignable: "Alice will create by Friday"
+✅ Measurable: "Aim for 0 missing tests in PRs"
+✅ Achievable: Can be done in one sprint
+
+Bad Action Items:
+❌ Vague: "Improve communication"
+❌ No owner: "Someone should look into this"
+❌ Too big: "Refactor the entire codebase"
+❌ Not actionable: "Be more careful"
+```
+
+### Improvement Experiments
+
+```
+Hypothesis: "If we pair program on complex features,
+            we'll have fewer bugs in code review."
+
+Experiment:
+├── Duration: 2 sprints
+├── Metric: Bugs found in review
+├── Baseline: 5 bugs per sprint
+├── Target: < 3 bugs per sprint
+
+Review:
+├── Did it work?
+├── What did we learn?
+├── Keep, adjust, or abandon?
+```
+
+### Team Health Checks
+
+```
+Squad Health Check Model:
+
+Dimension                  😀  😐  😟
+──────────────────────────────────────
+Delivering Value          [x][ ][ ]
+Easy to Release           [x][ ][ ]
+Technical Quality         [ ][x][ ]
+Learning                  [x][ ][ ]
+Mission/Purpose           [x][ ][ ]
+Speed                     [ ][x][ ]
+Fun                       [ ][ ][x] ← Focus area
+Support                   [x][ ][ ]
+Teamwork                  [x][ ][ ]
+```
+
+---
+
+## Scaling Agile
+
+### Common Frameworks
+
+| Framework | Scale | Key Concepts |
+|-----------|-------|--------------|
+| **SAFe** | Enterprise | ARTs, PI Planning, Value Streams |
+| **LeSS** | Large | One backlog, multiple teams |
+| **Spotify Model** | Company | Squads, Tribes, Chapters, Guilds |
+| **Nexus** | 3-9 teams | Integration Team, shared backlog |
+
+### Cross-Team Coordination
+
+```
+Techniques:
+├── Scrum of Scrums
+│   └── Rep from each team, discuss dependencies
+├── Big Room Planning
+│   └── All teams together, quarterly
+├── Shared Slack channels
+│   └── Real-time coordination
+└── Dependency board
+    └── Visualize cross-team dependencies
+```
+
+---
+
+## Common Anti-Patterns
+
+### Scrum Anti-Patterns
+
+| Anti-Pattern | Problem | Solution |
+|--------------|---------|----------|
+| **Zombie Scrum** | Going through motions, no improvement | Reset purpose, focus on outcomes |
+| **Sprint Stuffing** | Too much committed | Use velocity, protect capacity |
+| **No Backlog Refinement** | Planning meeting chaos | Regular refinement sessions |
+| **Skipped Retros** | No continuous improvement | Prioritize, vary format |
+| **Absent PO** | Unclear priorities | PO availability commitment |
+
+### Kanban Anti-Patterns
+
+| Anti-Pattern | Problem | Solution |
+|--------------|---------|----------|
+| **No WIP limits** | Everything in progress | Set and enforce limits |
+| **Invisible blockers** | Items stuck silently | Daily standup, blocked column |
+| **FIFO obsession** | Priority items wait | Expedite lane, explicit policies |
+| **Done but not done** | Items in "Done" aren't shipped | Definition of Done |
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"Scrum or Kanban - when would you use each?"**
+   - Scrum: Predictable delivery, new teams, defined sprints
+   - Kanban: Ops/support, variable work, continuous flow
+   - Often: Hybrid approach (Scrumban)
+
+2. **"How do you run an effective retrospective?"**
+   - Safe space, no blame
+   - Vary format to keep fresh
+   - Focus on actionable items
+   - Follow up on previous actions
+   - Time-boxed discussion
+
+3. **"How do you improve team velocity?"**
+   - Address blockers and waste
+   - Reduce context switching (WIP limits)
+   - Invest in automation
+   - Improve technical practices
+   - (Velocity itself isn't the goal - value delivery is)
+
+### Agile Checklist
+
+- [ ] Ceremonies happening and valuable?
+- [ ] Backlog groomed and prioritized?
+- [ ] Team empowered to self-organize?
+- [ ] Continuous improvement happening?
+- [ ] Sustainable pace maintained?
+- [ ] Value being delivered regularly?
+- [ ] Stakeholders engaged?
+- [ ] Metrics tracked and used?

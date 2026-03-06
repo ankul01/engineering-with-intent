@@ -1,0 +1,542 @@
+---
+title: "Messaging Queues"
+description: "Event-driven architecture, message brokers, Kafka, RabbitMQ, SQS, and stream processing."
+---
+
+# Messaging Queues
+
+Message queues enable asynchronous communication between services, decoupling producers from consumers and providing resilience, scalability, and flexibility in distributed systems.
+
+## Why Message Queues?
+
+```
+Synchronous (Tight Coupling):
+┌──────────┐  HTTP  ┌──────────┐  HTTP  ┌──────────┐
+│ Service A│───────▶│ Service B│───────▶│ Service C│
+└──────────┘        └──────────┘        └──────────┘
+    If B is down, A fails. A must wait for B+C.
+
+Asynchronous (Loose Coupling):
+┌──────────┐        ┌─────────┐        ┌──────────┐
+│ Service A│───────▶│  Queue  │───────▶│ Service B│
+└──────────┘        └─────────┘        └──────────┘
+    A publishes and continues. B processes when ready.
+```
+
+| Benefit | Description |
+|---------|-------------|
+| **Decoupling** | Producer doesn't know about consumers |
+| **Async Processing** | Don't block on slow operations |
+| **Load Leveling** | Absorb traffic spikes, process at own pace |
+| **Reliability** | Messages persisted until processed |
+| **Scalability** | Add more consumers to increase throughput |
+
+---
+
+## Core Concepts
+
+### Message Queue vs Message Broker vs Event Stream
+
+```
+Message Queue (Point-to-Point):
+┌──────────┐     ┌───────┐     ┌──────────┐
+│ Producer │────▶│ Queue │────▶│ Consumer │
+└──────────┘     └───────┘     └──────────┘
+                 Message removed after consumption
+
+Message Broker (Pub/Sub):
+┌──────────┐     ┌────────┐     ┌────────────┐
+│ Publisher│────▶│ Topic  │────▶│ Subscriber1│
+└──────────┘     └────────┘     ├────────────┤
+                      │         │ Subscriber2│
+                      └────────▶└────────────┘
+                 Message delivered to all subscribers
+
+Event Stream (Log-based):
+┌──────────┐     ┌─────────────────────────┐     ┌──────────┐
+│ Producer │────▶│ Partition (append-only) │────▶│ Consumer │
+└──────────┘     └─────────────────────────┘     └──────────┘
+                 Messages retained, consumers track offset
+```
+
+### Delivery Semantics
+
+| Guarantee | Description | Use Case |
+|-----------|-------------|----------|
+| **At-most-once** | Message may be lost, never duplicated | Metrics, logs (loss acceptable) |
+| **At-least-once** | Message never lost, may be duplicated | Most applications (with idempotency) |
+| **Exactly-once** | Message delivered exactly once | Financial transactions |
+
+### Message Ordering
+
+| Ordering | How | Tradeoff |
+|----------|-----|----------|
+| **No ordering** | Messages processed in any order | Maximum parallelism |
+| **Partition ordering** | Ordered within partition/queue | Balance of order + scale |
+| **Global ordering** | Single partition/queue | Limited throughput |
+
+---
+
+## Apache Kafka
+
+Distributed event streaming platform designed for high-throughput, fault-tolerant, real-time data pipelines.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Kafka Cluster                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  Topic: orders                                                  │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ Partition 0 │  │ Partition 1 │  │ Partition 2 │             │
+│  │ [0,1,2,3,4] │  │ [0,1,2,3]   │  │ [0,1,2]     │             │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+│         │                │                │                     │
+│    ┌────┴────┐      ┌────┴────┐      ┌────┴────┐               │
+│    │Broker 1 │      │Broker 2 │      │Broker 3 │               │
+│    │(Leader) │      │(Leader) │      │(Leader) │               │
+│    │         │      │         │      │         │               │
+│    │Replica  │      │Replica  │      │Replica  │               │
+│    │of P1,P2 │      │of P0,P2 │      │of P0,P1 │               │
+│    └─────────┘      └─────────┘      └─────────┘               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Producers ──▶ Partitions (by key hash) ──▶ Consumer Groups
+```
+
+### Key Concepts
+
+| Concept | Description |
+|---------|-------------|
+| **Topic** | Category/feed name for messages |
+| **Partition** | Ordered, immutable sequence of messages |
+| **Offset** | Unique ID for each message within partition |
+| **Broker** | Kafka server that stores data |
+| **Producer** | Publishes messages to topics |
+| **Consumer** | Reads messages from topics |
+| **Consumer Group** | Group of consumers sharing partition load |
+
+### Partitioning Strategy
+
+```python
+# Default: hash(key) % num_partitions
+partition = hash(order_id) % 3
+
+# Same key always goes to same partition
+# Guarantees ordering for that key
+```
+
+| Strategy | When to Use |
+|----------|-------------|
+| **Key-based** | Need ordering per entity (user, order) |
+| **Round-robin** | Maximum parallelism, no ordering needed |
+| **Custom** | Special routing logic |
+
+### Consumer Groups
+
+```
+Topic: orders (3 partitions)
+
+Consumer Group A (3 consumers):
+┌────┐  ┌────┐  ┌────┐
+│ C1 │  │ C2 │  │ C3 │
+└──┬─┘  └──┬─┘  └──┬─┘
+   │       │       │
+   P0      P1      P2    ← Each consumer gets 1 partition
+
+Consumer Group A (2 consumers):
+┌────┐  ┌────┐
+│ C1 │  │ C2 │
+└──┬─┘  └──┬─┘
+   │       │
+  P0,P1    P2             ← C1 handles 2 partitions
+
+Consumer Group B (independent):
+┌────┐
+│ C1 │
+└──┬─┘
+   │
+ P0,P1,P2                  ← Gets all messages (separate group)
+```
+
+### Kafka Guarantees
+
+| Setting | Guarantee | Performance |
+|---------|-----------|-------------|
+| `acks=0` | Fire and forget | Fastest, may lose |
+| `acks=1` | Leader acknowledged | Balanced |
+| `acks=all` | All replicas acknowledged | Slowest, safest |
+
+### When to Use Kafka
+
+- High-throughput event streaming (100K+ msg/sec)
+- Event sourcing and CQRS
+- Log aggregation
+- Real-time analytics pipelines
+- Change data capture (CDC)
+- Microservices communication
+
+---
+
+## RabbitMQ
+
+Traditional message broker implementing AMQP protocol with flexible routing.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        RabbitMQ                              │
+│                                                              │
+│  ┌──────────┐     ┌──────────┐     ┌─────────┐              │
+│  │ Producer │────▶│ Exchange │────▶│  Queue  │────▶Consumer │
+│  └──────────┘     └──────────┘     └─────────┘              │
+│                        │                                     │
+│                   Routing Key                                │
+│                   + Binding                                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Exchange Types
+
+```
+Direct Exchange:
+Producer ──▶ Exchange ──routing_key="order.created"──▶ Queue A
+                      ──routing_key="order.shipped"──▶ Queue B
+
+Fanout Exchange:
+Producer ──▶ Exchange ──▶ Queue A
+                      ──▶ Queue B    (all queues get all messages)
+                      ──▶ Queue C
+
+Topic Exchange:
+Producer ──▶ Exchange ──"order.*.us"────▶ Queue A (US orders)
+                      ──"order.created.*"──▶ Queue B (all created)
+                      ──"#"───────────────▶ Queue C (everything)
+
+Headers Exchange:
+Routes based on message headers instead of routing key
+```
+
+| Exchange Type | Routing Logic | Use Case |
+|---------------|--------------|----------|
+| **Direct** | Exact routing key match | Task queues |
+| **Fanout** | Broadcast to all queues | Notifications |
+| **Topic** | Pattern matching (*, #) | Flexible routing |
+| **Headers** | Header attribute matching | Complex routing |
+
+### Message Acknowledgment
+
+```python
+# Manual acknowledgment (safe)
+def callback(ch, method, properties, body):
+    process_message(body)
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+
+# Auto acknowledgment (risky - message lost if consumer crashes)
+channel.basic_consume(queue='tasks', auto_ack=True)
+```
+
+### When to Use RabbitMQ
+
+- Complex routing requirements
+- Request/reply patterns (RPC)
+- Priority queues
+- Traditional task queues
+- When you need message TTL
+- Smaller scale (thousands msg/sec)
+
+---
+
+## Amazon SQS
+
+Fully managed message queue service from AWS.
+
+### SQS Types
+
+```
+Standard Queue:
+┌──────────┐     ┌─────────────────┐     ┌──────────┐
+│ Producer │────▶│   SQS Standard  │────▶│ Consumer │
+└──────────┘     │ - Best-effort   │     └──────────┘
+                 │   ordering      │
+                 │ - At-least-once │
+                 │ - Unlimited TPS │
+                 └─────────────────┘
+
+FIFO Queue:
+┌──────────┐     ┌─────────────────┐     ┌──────────┐
+│ Producer │────▶│    SQS FIFO     │────▶│ Consumer │
+└──────────┘     │ - Strict order  │     └──────────┘
+                 │ - Exactly-once  │
+                 │ - 3000 msg/sec  │
+                 └─────────────────┘
+```
+
+| Feature | Standard | FIFO |
+|---------|----------|------|
+| Throughput | Unlimited | 3,000 msg/sec (batching: 30K) |
+| Ordering | Best-effort | Guaranteed |
+| Delivery | At-least-once | Exactly-once |
+| Deduplication | None | 5-minute window |
+
+### Visibility Timeout
+
+```
+┌──────────┐                    ┌──────────┐
+│ Consumer │  1. Receive msg    │   SQS    │
+│    A     │◀───────────────────│          │
+└──────────┘                    │  [msg]   │
+                                │ (hidden) │
+     Processing...              └──────────┘
+                                
+     ┌── If processed: Delete message
+     │
+     └── If timeout expires: Message visible again
+         (another consumer can process)
+```
+
+### Dead Letter Queue (DLQ)
+
+```
+┌──────────┐     ┌────────┐     ┌──────────┐
+│ Producer │────▶│ Queue  │────▶│ Consumer │
+└──────────┘     └───┬────┘     └──────────┘
+                     │
+              After N failures
+                     │
+                     ▼
+               ┌──────────┐
+               │   DLQ    │  ← Investigate failed messages
+               └──────────┘
+```
+
+### When to Use SQS
+
+- AWS-native applications
+- Simple queue needs without complex routing
+- Serverless architectures (Lambda integration)
+- When you want managed infrastructure
+
+---
+
+## Comparison: Kafka vs RabbitMQ vs SQS
+
+| Feature | Kafka | RabbitMQ | SQS |
+|---------|-------|----------|-----|
+| **Model** | Event log | Message broker | Queue |
+| **Ordering** | Per partition | Per queue | FIFO only |
+| **Retention** | Configurable (days/forever) | Until consumed | 14 days max |
+| **Replay** | Yes (offset reset) | No | No |
+| **Throughput** | Very high (100K+/sec) | Medium (10K/sec) | High (unlimited for Standard) |
+| **Routing** | Topic/partition | Flexible exchanges | None |
+| **Scaling** | Partitions | Queues | Automatic |
+| **Managed** | Confluent/MSK | CloudAMQP | Native AWS |
+| **Complexity** | High | Medium | Low |
+
+### Decision Matrix
+
+| Use Case | Recommended |
+|----------|-------------|
+| High-throughput event streaming | Kafka |
+| Event sourcing / replay needed | Kafka |
+| Complex routing logic | RabbitMQ |
+| Request/reply (RPC) | RabbitMQ |
+| AWS serverless | SQS |
+| Simple task queue | SQS or RabbitMQ |
+| Real-time analytics | Kafka |
+| Log aggregation | Kafka |
+
+---
+
+## Event-Driven Architecture
+
+### Event Types
+
+| Type | Description | Example |
+|------|-------------|---------|
+| **Event Notification** | Something happened, minimal data | `OrderCreated { order_id }` |
+| **Event-Carried State Transfer** | Full state in event | `OrderCreated { order_id, items, total, customer }` |
+| **Domain Event** | Business-meaningful occurrence | `PaymentReceived`, `InventoryReserved` |
+
+### Event Sourcing
+
+Store all changes as a sequence of events, derive current state by replaying.
+
+```
+Event Store:
+┌────────────────────────────────────────────────────────────┐
+│ Order #123                                                 │
+├────────────────────────────────────────────────────────────┤
+│ 1. OrderCreated { items: [...], total: 100 }               │
+│ 2. PaymentReceived { amount: 100 }                         │
+│ 3. OrderShipped { tracking: "ABC123" }                     │
+│ 4. OrderDelivered { timestamp: "2024-01-15" }              │
+└────────────────────────────────────────────────────────────┘
+
+Current State = Replay(Event 1 → 2 → 3 → 4)
+```
+
+| Pros | Cons |
+|------|------|
+| Complete audit trail | Complexity |
+| Replay/rebuild state | Event schema evolution |
+| Temporal queries | Eventually consistent |
+| Debug by replaying | Storage growth |
+
+### Saga Pattern
+
+Manage distributed transactions across services using events.
+
+```
+Choreography (Event-driven):
+┌─────────┐  OrderCreated  ┌─────────┐  PaymentProcessed  ┌─────────┐
+│ Order   │───────────────▶│ Payment │──────────────────▶│Inventory│
+│ Service │                │ Service │                    │ Service │
+└─────────┘                └─────────┘                    └─────────┘
+     ▲                                                         │
+     └─────────────────InventoryReserved──────────────────────┘
+
+Orchestration (Central coordinator):
+                    ┌────────────────┐
+                    │  Saga          │
+                    │  Orchestrator  │
+                    └───────┬────────┘
+              ┌─────────────┼─────────────┐
+              ▼             ▼             ▼
+         ┌─────────┐  ┌─────────┐  ┌─────────┐
+         │ Order   │  │ Payment │  │Inventory│
+         └─────────┘  └─────────┘  └─────────┘
+```
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| **Choreography** | Loose coupling, simple | Hard to track, circular dependencies |
+| **Orchestration** | Clear flow, easy to track | Central point of failure |
+
+---
+
+## Patterns and Best Practices
+
+### Idempotency
+
+Ensure processing a message multiple times has the same effect as processing once.
+
+```python
+def process_order(order_id, idempotency_key):
+    # Check if already processed
+    if redis.get(f"processed:{idempotency_key}"):
+        return  # Already done
+    
+    # Process order
+    create_order(order_id)
+    
+    # Mark as processed
+    redis.set(f"processed:{idempotency_key}", "1", ex=86400)
+```
+
+### Outbox Pattern
+
+Ensure reliable message publishing with database transactions.
+
+```
+┌──────────────────────────────────────────────────┐
+│                   Transaction                     │
+│  ┌─────────────────┐  ┌─────────────────────┐    │
+│  │ Update Order    │  │ Insert into Outbox  │    │
+│  │ SET status =    │  │ (order_id, event,   │    │
+│  │ 'confirmed'     │  │  payload, status)   │    │
+│  └─────────────────┘  └─────────────────────┘    │
+└──────────────────────────────────────────────────┘
+                           │
+                     Background job
+                           │
+                           ▼
+                    ┌─────────────┐
+                    │ Kafka/Queue │
+                    └─────────────┘
+```
+
+### Dead Letter Queue Handling
+
+```python
+def process_with_dlq(message, max_retries=3):
+    try:
+        process(message)
+    except Exception as e:
+        retry_count = message.headers.get('retry_count', 0)
+        
+        if retry_count < max_retries:
+            # Retry with backoff
+            message.headers['retry_count'] = retry_count + 1
+            queue.publish(message, delay=2 ** retry_count)
+        else:
+            # Send to DLQ for investigation
+            dlq.publish(message)
+            alert_ops_team(message, e)
+```
+
+### Backpressure
+
+Handle producer faster than consumer scenarios.
+
+| Strategy | Description |
+|----------|-------------|
+| **Buffering** | Queue absorbs burst, process later |
+| **Dropping** | Discard messages when overwhelmed |
+| **Rate limiting** | Slow down producer |
+| **Scaling** | Add more consumers |
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you ensure exactly-once processing?"**
+   - Idempotent consumers with deduplication keys
+   - Transactional outbox pattern
+   - Kafka transactions (for Kafka-to-Kafka)
+
+2. **"Design a notification system"**
+   - Fanout pattern with topic/exchange
+   - Priority queues for urgent notifications
+   - DLQ for failed deliveries
+
+3. **"How do you handle message ordering?"**
+   - Partition by entity key (Kafka)
+   - Single queue per entity
+   - Accept eventual consistency with versioning
+
+4. **"What happens if a consumer crashes mid-processing?"**
+   - Messages re-delivered (at-least-once)
+   - Visibility timeout (SQS)
+   - Consumer group rebalance (Kafka)
+
+### Numbers to Know
+
+| Metric | Value |
+|--------|-------|
+| Kafka throughput (single partition) | 10-50 MB/sec |
+| Kafka throughput (cluster) | 100K+ msg/sec |
+| Kafka retention default | 7 days |
+| RabbitMQ throughput | 10-20K msg/sec |
+| SQS Standard throughput | Unlimited |
+| SQS FIFO throughput | 3,000 msg/sec |
+| SQS message retention | 4 days (max 14) |
+| SQS visibility timeout default | 30 seconds |
+
+### Design Checklist
+
+- [ ] Delivery guarantee needed? (at-least-once, exactly-once)
+- [ ] Ordering requirements? (none, partition, global)
+- [ ] Message retention and replay needed?
+- [ ] Throughput requirements?
+- [ ] Routing complexity?
+- [ ] Consumer failure handling? (retry, DLQ)
+- [ ] Idempotency strategy?
+- [ ] Monitoring and alerting? (lag, failures)
+- [ ] Schema evolution strategy?

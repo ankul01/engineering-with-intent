@@ -1,0 +1,914 @@
+---
+title: "Collaborative Editing System (Google Docs) — System Design"
+description: "High-level design for a real-time collaborative editing system: conflict resolution, consistency, data model, and scalability patterns."
+ShowToc: true
+TocOpen: true
+---
+
+> **Iteration:** v1 — Core Collaborative Editing Design
+> **Next:** Offline support, rich media embedding, comments/suggestions, mobile optimization
+
+---
+
+## 1. Problem Statement
+
+A collaborative editing system allows multiple users to simultaneously create, edit, and view documents in real-time. The system must ensure that all users see a consistent view of the document despite concurrent edits, while maintaining low latency and high availability.
+
+### When do you need a collaborative editor?
+
+| Scenario | Example |
+|---|---|
+| Team documentation | Engineering teams collaborating on design docs |
+| Real-time note-taking | Meeting notes edited by multiple participants |
+| Content collaboration | Marketing teams drafting campaigns together |
+| Educational platforms | Students and teachers working on shared assignments |
+| Legal/Contract editing | Multiple parties reviewing and editing contracts |
+
+---
+
+## 2. Requirements
+
+### 2.1 Functional Requirements
+
+| FR# | Requirement | Description |
+|---|---|---|
+| **FR1** | Single User Editing | Users can create, open, update, and delete their own documents in the browser |
+| **FR2** | Live Edit Streaming | Edits made by one user appear to other collaborators in near real-time |
+| **FR3** | Concurrent Edit Convergence | Simultaneous edits from different users converge to the same final document state |
+| **FR4** | Cursor & Selection Presence | Users can see collaborators' live cursors and text selections |
+| **FR5** | Sharing & Permissions | Users can share documents with others and control access levels (view/edit/admin) |
+| **FR6** | Version History | Users can view previous revisions and restore a document to an earlier version |
+
+### 2.2 Non-Functional Requirements
+
+| NFR | Target | Why it matters |
+|---|---|---|
+| **Low Latency** | < 100ms for edit propagation | Edits must feel instantaneous for a fluid editing experience |
+| **Convergence** | Eventual consistency within 1s | All users must see the same final document state |
+| **Read-Your-Writes** | Immediate | A user should see their own edits before server confirmation |
+| **High Durability** | 99.999999999% (11 nines) | Document content and revisions must survive failures |
+| **High Availability** | 99.9% uptime | Editor should stay usable during peak traffic and partial outages |
+| **Security** | Zero unauthorized access | Only authorized users can read or modify documents |
+| **Scalability** | 100 concurrent editors per doc | Handle hot documents with many simultaneous editors |
+
+### 2.3 Out of Scope (v1)
+
+- Offline editing with sync
+- Rich media embedding (images, videos, tables)
+- Comments and suggestions workflow
+- Mobile-native applications
+- Real-time voice/video collaboration
+
+---
+
+## 3. Capacity Estimations
+
+### 3.1 Scale Parameters
+
+| Parameter | Value | Notes |
+|---|---|---|
+| DAU | 1 million | Daily active users |
+| Traffic spike | 5x during peak hours | Business hours concentration |
+| Read:Write ratio | 10:1 | More viewing than editing |
+| Average document size | 100 KB | Text-heavy documents |
+| Documents per user | 10 | Average ownership |
+| Edit frequency | 1 edit/second/active doc | During peak editing |
+| Max concurrent editors | 100 per document | Hot document scenario |
+
+### 3.2 Storage Estimation
+
+```
+Total documents = 1M users × 10 docs/user = 10 million documents
+
+Document storage:
+- Content: 10M docs × 100 KB = 1 TB
+- Metadata: 10M docs × 1 KB = 10 GB
+- Operation logs: 10M docs × 50 KB avg = 500 GB
+- Revisions (30-day): 10M docs × 10 revisions × 20 KB delta = 2 TB
+
+Total storage ≈ 3.5 TB + growth buffer = ~5 TB initial
+```
+
+### 3.3 Throughput Estimation
+
+```
+Peak concurrent users = 1M DAU × 0.1 (10% online at peak) = 100K users
+
+Assuming 10% actively editing:
+- Active editors at peak = 100K × 0.1 = 10,000 users
+- Edit operations/sec = 10,000 × 1 op/sec = 10,000 ops/sec
+
+WebSocket connections at peak = 100,000 concurrent connections
+```
+
+### 3.4 Bandwidth Estimation
+
+```
+Per edit operation: ~200 bytes (operation + metadata)
+Edit broadcast: 200 bytes × avg 5 collaborators = 1 KB per edit
+
+Inbound: 10,000 ops/sec × 200 bytes = 2 MB/s
+Outbound (fanout): 10,000 ops/sec × 1 KB = 10 MB/s
+
+Total bandwidth ≈ 12 MB/s sustained, 60 MB/s at 5x peak
+```
+
+### 3.5 Infrastructure Summary
+
+| Component | Sizing | Notes |
+|---|---|---|
+| WebSocket Servers | 20 instances | ~5K connections each with buffer |
+| Application Servers | 10 instances | Handle document operations |
+| Collaboration Service | 5 instances | OT/sequencing (can be colocated) |
+| Redis (Presence) | 3-node cluster | Ephemeral cursor/presence data |
+| PostgreSQL (Metadata) | Primary + 2 replicas | Document metadata, permissions |
+| Object Storage (S3) | 5 TB initial | Document content, snapshots |
+| Message Queue (Kafka) | 3-broker cluster | Operation fanout |
+
+---
+
+## 4. Data Model
+
+### 4.1 Core Entities
+
+#### Document
+
+```
+Document {
+    id:                 UUID          // Unique document identifier
+    owner_id:           UUID          // User who created the document
+    title:              String        // Document title
+    head_revision_id:   UUID          // Pointer to latest revision
+    created_at:         Timestamp
+    updated_at:         Timestamp
+    content_url:        String        // Object storage URL for content
+}
+```
+
+#### Operation
+
+Atomic edit operation sent by a client.
+
+```
+Operation {
+    id:                 UUID          // Unique operation ID
+    document_id:        UUID          // Parent document
+    user_id:            UUID          // Author of the operation
+    type:               Enum          // INSERT, DELETE, RETAIN
+    position:           Integer       // Character position in document
+    content:            String        // Text to insert (for INSERT ops)
+    length:             Integer       // Characters affected (for DELETE/RETAIN)
+    client_revision:    Integer       // Client's view of document version
+    server_revision:    Integer       // Assigned by server after sequencing
+    timestamp:          Timestamp
+}
+```
+
+#### Revision
+
+Point-in-time version metadata for history and restore.
+
+```
+Revision {
+    id:                 UUID
+    document_id:        UUID
+    revision_number:    Integer       // Sequential version number
+    snapshot_url:       String        // Object storage URL for snapshot
+    operations_range:   [start, end]  // Operation IDs included
+    author_id:          UUID          // Primary contributor
+    created_at:         Timestamp
+    size_bytes:         Integer
+}
+```
+
+#### Permission
+
+Access control entry defining who can access a document.
+
+```
+Permission {
+    id:                 UUID
+    document_id:        UUID
+    grantee_type:       Enum          // USER, GROUP, LINK
+    grantee_id:         String        // User/group ID or link token
+    role:               Enum          // VIEWER, EDITOR, ADMIN
+    expires_at:         Timestamp     // Optional expiration
+    created_by:         UUID
+    created_at:         Timestamp
+}
+```
+
+### 4.2 Entity Relationships
+
+```
+┌─────────────┐     1:N     ┌─────────────┐
+│  Document   │────────────▶│  Revision   │
+└─────────────┘             └─────────────┘
+       │
+       │ 1:N
+       ▼
+┌─────────────┐
+│  Operation  │
+└─────────────┘
+       │
+       │ 1:N
+       ▼
+┌─────────────┐
+│ Permission  │
+└─────────────┘
+```
+
+---
+
+## 5. API Design
+
+### 5.1 REST Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/documents` | Create a new document |
+| `GET` | `/api/documents/{id}` | Fetch document metadata and content |
+| `DELETE` | `/api/documents/{id}` | Delete a document |
+| `POST` | `/api/documents/{id}/operations` | Submit edit operations (batch) |
+| `GET` | `/api/documents/{id}/history` | List document revisions |
+| `POST` | `/api/documents/{id}/restore/{revisionId}` | Restore to a previous revision |
+| `POST` | `/api/documents/{id}/permissions` | Grant or update access |
+| `DELETE` | `/api/documents/{id}/permissions/{permId}` | Revoke access |
+
+### 5.2 WebSocket Protocol
+
+```
+Endpoint: WS /api/documents/{documentId}/collaborate
+
+// Client → Server Messages
+{
+    "type": "operation",
+    "payload": {
+        "ops": [
+            { "type": "RETAIN", "length": 10 },
+            { "type": "INSERT", "content": "Hello" },
+            { "type": "DELETE", "length": 3 }
+        ],
+        "clientRevision": 42
+    }
+}
+
+{
+    "type": "presence_update",
+    "payload": {
+        "cursor": { "position": 150, "selectionEnd": 160 },
+        "color": "#FF5733"
+    }
+}
+
+// Server → Client Messages
+{
+    "type": "operation_ack",
+    "payload": {
+        "serverRevision": 43,
+        "transformedOps": [...]  // If transformation was needed
+    }
+}
+
+{
+    "type": "remote_operation",
+    "payload": {
+        "userId": "user-456",
+        "userName": "Alice",
+        "serverRevision": 44,
+        "ops": [...]
+    }
+}
+
+{
+    "type": "presence_broadcast",
+    "payload": {
+        "userId": "user-456",
+        "userName": "Alice",
+        "cursor": { "position": 200 },
+        "color": "#3498DB"
+    }
+}
+```
+
+---
+
+## 6. High-Level Architecture
+
+### 6.1 Architecture Diagram
+
+```
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                        Clients                               │
+                                    │    (Web Browsers / Mobile Apps / Desktop Apps)               │
+                                    └─────────────────────────────┬───────────────────────────────┘
+                                                                  │
+                                                                  │ HTTPS / WSS
+                                                                  ▼
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                     Load Balancer                            │
+                                    │              (Sticky Sessions for WebSocket)                 │
+                                    └─────────────────────────────┬───────────────────────────────┘
+                                                                  │
+                              ┌───────────────────────────────────┼───────────────────────────────────┐
+                              │                                   │                                   │
+                              ▼                                   ▼                                   ▼
+                    ┌─────────────────┐                 ┌─────────────────┐                 ┌─────────────────┐
+                    │   Real-time     │                 │   Real-time     │                 │   Real-time     │
+                    │    Gateway      │                 │    Gateway      │                 │    Gateway      │
+                    │  (WebSocket)    │                 │  (WebSocket)    │                 │  (WebSocket)    │
+                    └────────┬────────┘                 └────────┬────────┘                 └────────┬────────┘
+                             │                                   │                                   │
+                             └───────────────────────────────────┼───────────────────────────────────┘
+                                                                 │
+                    ┌────────────────────────────────────────────┼────────────────────────────────────────────┐
+                    │                                            │                                            │
+                    ▼                                            ▼                                            ▼
+          ┌─────────────────┐                          ┌─────────────────┐                          ┌─────────────────┐
+          │   Presence      │                          │  Collaboration  │                          │   Document      │
+          │   Service       │                          │    Service      │                          │   Service       │
+          │                 │                          │                 │                          │                 │
+          │ • Cursor sync   │                          │ • OT Engine     │                          │ • CRUD ops      │
+          │ • User presence │                          │ • Sequencer     │                          │ • Permissions   │
+          │ • Ephemeral     │                          │ • Op Log        │                          │ • Metadata      │
+          └────────┬────────┘                          └────────┬────────┘                          └────────┬────────┘
+                   │                                            │                                            │
+                   ▼                                            │                                            ▼
+          ┌─────────────────┐                                   │                                   ┌─────────────────┐
+          │     Redis       │                                   │                                   │   PostgreSQL    │
+          │  (Presence)     │                                   │                                   │  (Metadata)     │
+          │                 │                                   │                                   │                 │
+          │ • TTL-based     │                                   │                                   │ • Documents     │
+          │ • Pub/Sub       │                                   │                                   │ • Permissions   │
+          └─────────────────┘                                   │                                   │ • Revisions     │
+                                                                │                                   └─────────────────┘
+                                                                │
+                                                                ▼
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                      Message Queue                           │
+                                    │                    (Kafka / Redis Pub/Sub)                   │
+                                    │                                                             │
+                                    │  • Operation fanout to all gateways                         │
+                                    │  • Guaranteed delivery                                       │
+                                    │  • Per-document topic partitioning                          │
+                                    └─────────────────────────────────────────────────────────────┘
+                                                                │
+                                    ┌───────────────────────────┼───────────────────────────────┐
+                                    │                           │                               │
+                                    ▼                           ▼                               ▼
+                          ┌─────────────────┐         ┌─────────────────┐             ┌─────────────────┐
+                          │  Operation Log  │         │ Object Storage  │             │ Snapshot Writer │
+                          │  (Append-only)  │         │    (S3/GCS)     │             │   (Background)  │
+                          │                 │         │                 │             │                 │
+                          │ • All ops       │         │ • Doc content   │             │ • Periodic      │
+                          │ • Ordered       │         │ • Snapshots     │             │ • Compaction    │
+                          │ • Immutable     │         │ • Durable       │             │ • Rev creation  │
+                          └─────────────────┘         └─────────────────┘             └─────────────────┘
+```
+
+### 6.2 Component Responsibilities
+
+| Component | Responsibility | Scaling Strategy |
+|---|---|---|
+| **Real-time Gateway** | WebSocket connection management, message routing | Horizontal scaling with sticky sessions |
+| **Collaboration Service** | Operation transformation, sequencing, conflict resolution | Partition by document ID |
+| **Document Service** | CRUD operations, permission checks, metadata management | Stateless horizontal scaling |
+| **Presence Service** | Cursor positions, user online status | Stateless with Redis backend |
+| **Operation Log** | Append-only log of all operations | Partitioned by document ID |
+| **Message Queue** | Fan-out transformed operations to all gateways | Topic per document |
+| **Snapshot Writer** | Periodic snapshots for fast document loading | Background workers |
+
+### 6.3 Request Flow — Edit Operation
+
+```
+1. User types "Hello" in the editor
+
+2. Client creates operation:
+   { type: INSERT, position: 50, content: "Hello", clientRevision: 42 }
+
+3. Client sends operation over WebSocket to Real-time Gateway
+
+4. Gateway forwards to Collaboration Service
+
+5. Collaboration Service:
+   a. Validates user permission (via Document Service)
+   b. Acquires lock for document (distributed lock)
+   c. Transforms operation against any concurrent ops
+   d. Assigns server revision number (43)
+   e. Appends to Operation Log
+   f. Publishes transformed op to Message Queue
+
+6. Message Queue fans out to all subscribed Gateways
+
+7. Each Gateway broadcasts to connected collaborators
+
+8. Clients apply transformed operation to their local state
+
+9. Original client receives ACK with server revision
+```
+
+---
+
+## 7. Deep Dive: Real-Time Collaborative Editing & Consistency
+
+This is the core challenge of the system. When 100 users edit the same document simultaneously, how do we ensure everyone sees the same final result?
+
+### 7.1 The Concurrency Problem
+
+Consider two users editing the same sentence:
+
+```
+Initial document: "Hello World"
+                   01234567890
+
+User A (at position 5): INSERT " Beautiful"   → "Hello Beautiful World"
+User B (at position 5): INSERT " Amazing"     → "Hello Amazing World"
+
+Both users started from the same state, but their operations conflict.
+Without resolution, we get divergent states:
+- User A sees: "Hello Beautiful World"
+- User B sees: "Hello Amazing World"
+```
+
+### 7.2 Conflict Resolution Strategies
+
+#### Option 1: Last-Write-Wins (LWW)
+
+```
+How it works: Latest timestamp wins, earlier edit is discarded.
+
+Pros:
+- Simple implementation
+- No complex merging
+
+Cons:
+- Data loss (user's work disappears)
+- Terrible user experience
+- Not suitable for collaborative editing
+
+Verdict: ❌ NOT SUITABLE
+```
+
+#### Option 2: Operational Transformation (OT)
+
+```
+How it works:
+- Operations are transformed against concurrent operations
+- A central server sequences all operations
+- Each operation is adjusted based on prior operations
+
+Example:
+- User A: INSERT("Beautiful", 5)  →  arrives first  →  revision 1
+- User B: INSERT("Amazing", 5)    →  arrives second →  must transform
+
+Transformation:
+- User A's op inserted 10 chars at position 5
+- User B's position must shift: 5 + 10 = 15
+- Transformed: INSERT("Amazing", 15)
+
+Result: "Hello Beautiful Amazing World" (both edits preserved!)
+
+Pros:
+- Proven in production (Google Docs uses OT)
+- Efficient on wire (small operation deltas)
+- Central sequencer simplifies consistency
+
+Cons:
+- Complex transformation functions
+- Requires central coordination (server dependency)
+- Offline support is challenging
+
+Verdict: ✅ RECOMMENDED for server-centric architecture
+```
+
+#### Option 3: Conflict-free Replicated Data Types (CRDTs)
+
+```
+How it works:
+- Each character has a unique, globally ordered ID
+- Operations can be applied in any order
+- Convergence is mathematically guaranteed
+
+Example (simplified):
+- Character IDs are tuples: (timestamp, userId, position)
+- "Hello" → [(1,A,0)H, (2,A,1)e, (3,A,2)l, (4,A,3)l, (5,A,4)o]
+- Insert by User A: (6,A,5)" " → automatically ordered
+- Insert by User B: (6,B,5)" " → different userId, deterministic order
+
+Pros:
+- No central coordinator needed
+- Works offline (sync when reconnected)
+- Mathematically proven convergence
+
+Cons:
+- Higher memory overhead (metadata per character)
+- Complex garbage collection
+- Harder to reason about for teams
+
+Verdict: ✅ BETTER for peer-to-peer / offline-first
+```
+
+### 7.3 Our Choice: Server-Ordered Operational Transformation
+
+For 1M DAU with 100 concurrent editors per document, we choose OT because:
+
+1. **Centralized sequencing fits our architecture** — we already have collaboration servers
+2. **Lower client complexity** — transformation logic lives on server
+3. **Efficient bandwidth** — operations are small (no per-character metadata)
+4. **Proven at scale** — Google Docs, Etherpad use OT
+
+### 7.4 OT Implementation Details
+
+#### Operation Types
+
+```
+Operations follow a simple model with three types:
+
+1. RETAIN(n)  - Keep n characters unchanged
+2. INSERT(s)  - Insert string s at current position
+3. DELETE(n)  - Delete n characters
+
+Example: Changing "Hello World" to "Hello Beautiful World"
+Operations: [RETAIN(5), INSERT(" Beautiful"), RETAIN(6)]
+            Keep "Hello", insert " Beautiful", keep " World"
+```
+
+#### Transformation Function
+
+```
+The core of OT is the transform(op1, op2) function.
+
+Given two operations that were created from the same base state:
+- op1: first operation (already applied)
+- op2: second operation (needs transformation)
+
+Returns: op2' (transformed version of op2 that can be applied after op1)
+
+Key transformations:
+
+1. INSERT vs INSERT (both at same position):
+   - Tie-breaker: lower userId wins priority
+   - Loser's position shifts by winner's insert length
+
+2. INSERT vs DELETE:
+   - If insert position < delete range: delete shifts right
+   - If insert position > delete range: insert shifts left
+   - If insert position within delete range: insert survives
+
+3. DELETE vs DELETE (overlapping):
+   - Only delete characters not already deleted
+   - Adjust ranges to avoid double-deletion
+```
+
+#### Transformation Example
+
+```
+Base document: "ABCDEF" (positions: A=0, B=1, C=2, D=3, E=4, F=5)
+
+User A operation: DELETE at position 2, length 2  →  Delete "CD"
+User B operation: INSERT "XY" at position 3
+
+Timeline:
+  t0: Both users see "ABCDEF"
+  t1: User A sends DELETE(2, 2)  →  Server assigns revision 1
+  t2: User B sends INSERT(3, "XY") →  Needs transformation
+
+Transformation:
+- A deleted positions 2-3 ("CD")
+- B wanted to insert at position 3 (which is inside deleted range)
+- Decision: Insert survives at position 2 (start of deletion)
+- Transformed B: INSERT(2, "XY")
+
+Final result (both users):
+- After A: "ABEF"
+- After B': "ABXYEF"
+```
+
+### 7.5 Sequencer Design for 100 Concurrent Users
+
+The sequencer is the critical component that orders operations per document.
+
+```
+                                    ┌─────────────────────────────────────────┐
+                                    │           Collaboration Service          │
+                                    └─────────────────────────────────────────┘
+                                                         │
+                                    ┌────────────────────┼────────────────────┐
+                                    │                    │                    │
+                                    ▼                    ▼                    ▼
+                              ┌──────────┐         ┌──────────┐         ┌──────────┐
+                              │Sequencer │         │Sequencer │         │Sequencer │
+                              │ Doc A-M  │         │ Doc N-S  │         │ Doc T-Z  │
+                              └──────────┘         └──────────┘         └──────────┘
+                                    │                    │                    │
+                                    │              Document Partition          │
+                                    │                    │                    │
+                                    └────────────────────┼────────────────────┘
+                                                         │
+                                                         ▼
+                                              ┌─────────────────┐
+                                              │  Operation Log  │
+                                              │  (Per Document) │
+                                              └─────────────────┘
+```
+
+#### Sequencer Algorithm
+
+```java
+class DocumentSequencer {
+    private final Lock documentLock;
+    private int currentRevision;
+    private final List<Operation> pendingOps;
+    private final OperationLog operationLog;
+    
+    public TransformResult processOperation(Operation incomingOp) {
+        documentLock.lock();
+        try {
+            // 1. Validate operation
+            validateOperation(incomingOp);
+            
+            // 2. Get operations since client's known revision
+            List<Operation> concurrentOps = operationLog
+                .getOperationsSince(incomingOp.getClientRevision());
+            
+            // 3. Transform against all concurrent operations
+            Operation transformed = incomingOp;
+            for (Operation concurrent : concurrentOps) {
+                transformed = transform(transformed, concurrent);
+            }
+            
+            // 4. Assign server revision and persist
+            currentRevision++;
+            transformed.setServerRevision(currentRevision);
+            operationLog.append(transformed);
+            
+            // 5. Return result for broadcast
+            return new TransformResult(transformed, currentRevision);
+            
+        } finally {
+            documentLock.unlock();
+        }
+    }
+}
+```
+
+### 7.6 Handling Hot Documents (100 Concurrent Editors)
+
+When 100 users edit simultaneously, the sequencer becomes a bottleneck. Solutions:
+
+#### Strategy 1: Single-Threaded Event Loop (Recommended for v1)
+
+```
+Each document has a dedicated single-threaded event loop:
+- Operations queue up and are processed in order
+- No lock contention (single thread)
+- Throughput: ~10,000 ops/sec per document (sufficient for 100 users at 1 op/sec each)
+
+Pros: Simple, predictable latency
+Cons: Single point of failure per document
+```
+
+#### Strategy 2: Optimistic Batching
+
+```
+Batch multiple operations before sequencing:
+- Collect ops for 10-50ms
+- Transform entire batch together
+- Reduces transformation overhead
+
+Pseudocode:
+while (true) {
+    List<Operation> batch = collectOpsForMs(50);
+    for (Operation op : batch) {
+        processOperation(op);
+    }
+    broadcastBatch(batch);
+}
+```
+
+#### Strategy 3: Hierarchical OT (for extreme scale)
+
+```
+For documents with 1000+ concurrent editors:
+- Divide document into regions
+- Separate sequencer per region
+- Cross-region operations require coordination
+
+This is complex and rarely needed (Google Docs limits ~100 concurrent).
+```
+
+### 7.7 Consistency Guarantees
+
+| Guarantee | Implementation | SLA |
+|---|---|---|
+| **Convergence** | Server-ordered OT with single sequencer per document | All users see same state within 1 second |
+| **Causality** | Server revision numbers ensure causal ordering | Operations from same user are never reordered |
+| **Read-Your-Writes** | Client applies local ops optimistically | Immediate (0ms perceived latency) |
+| **Durability** | Operation log write before ACK | No acknowledged operation is ever lost |
+
+### 7.8 Client-Side Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              Client Editor                                  │
+│                                                                            │
+│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐ │
+│  │   Editor    │───▶│  Local Op   │───▶│  Transform  │───▶│  WebSocket  │ │
+│  │   (UI)      │    │   Queue     │    │   Buffer    │    │   Client    │ │
+│  └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘ │
+│        ▲                                      │                  │         │
+│        │                                      │                  │         │
+│        └──────────────────────────────────────┘                  │         │
+│                     Apply Transformed Ops                         │         │
+│                                                                   │         │
+│  ┌─────────────────────────────────────────────────────────────┐ │         │
+│  │                    Operation Buffer                          │ │         │
+│  │                                                              │ │         │
+│  │  Pending:    [op1, op2, op3]  (sent but not ACKed)          │◀┘         │
+│  │  Unsynced:   [op4, op5]       (local, not yet sent)         │           │
+│  │                                                              │           │
+│  └─────────────────────────────────────────────────────────────┘           │
+└────────────────────────────────────────────────────────────────────────────┘
+
+Client Algorithm:
+1. User makes edit → Create local operation
+2. Apply optimistically to local document (instant feedback)
+3. If no pending ops, send immediately
+4. If pending ops exist, queue in Unsynced buffer
+5. When ACK received:
+   a. Remove from Pending buffer
+   b. Transform Unsynced ops against any server ops
+   c. Send next queued operation
+6. When remote op received:
+   a. Transform against all Pending ops
+   b. Apply transformed op to local document
+   c. Update cursor positions
+```
+
+### 7.9 Presence & Cursor Synchronization
+
+Cursor updates are high-frequency but ephemeral — different treatment than document edits.
+
+```
+Presence Update Flow:
+
+1. User moves cursor → Client sends presence update (throttled to 100ms)
+2. Real-time Gateway forwards to Presence Service
+3. Presence Service:
+   - Updates Redis with TTL (5 seconds)
+   - Publishes to document's presence channel
+4. Other clients receive cursor position
+5. TTL cleanup removes stale presence (user closed tab)
+
+Data Structure (Redis):
+Key: "presence:{documentId}:{userId}"
+Value: {
+    "cursor": {"position": 150, "selectionEnd": 160},
+    "color": "#FF5733",
+    "name": "Alice",
+    "lastUpdate": 1708425600
+}
+TTL: 5 seconds (auto-cleanup)
+```
+
+---
+
+## 8. Critical Tradeoffs
+
+### 8.1 OT vs CRDT
+
+| Factor | OT (Our Choice) | CRDT |
+|---|---|---|
+| **Complexity Location** | Server (transformation logic) | Client (data structure) |
+| **Central Coordinator** | Required (sequencer) | Not required |
+| **Offline Support** | Challenging (needs reconciliation) | Native (merge anytime) |
+| **Memory Overhead** | Low (operations are deltas) | Higher (per-character metadata) |
+| **Bandwidth** | Low (small operations) | Higher (tombstones, metadata) |
+| **Industry Adoption** | Google Docs, Etherpad | Figma, Notion (newer systems) |
+| **Team Familiarity** | More established | Newer, steeper learning curve |
+
+**Decision:** OT for v1 because of lower client complexity and server-centric architecture. Reconsider CRDT if offline-first becomes a requirement.
+
+### 8.2 Consistency vs Availability
+
+| Scenario | Our Choice | Tradeoff |
+|---|---|---|
+| **Sequencer temporarily unavailable** | Queue operations, retry | Higher latency, eventual consistency |
+| **Network partition** | Clients continue editing locally | May need conflict resolution on reconnect |
+| **Hot document (100 users)** | Single sequencer, queue overflow protection | May throttle low-priority users |
+
+**Decision:** Favor availability with eventual consistency. Users can continue typing; sync happens when connectivity restores.
+
+### 8.3 Latency vs Durability
+
+| Approach | Latency | Durability | Risk |
+|---|---|---|---|
+| **ACK after disk write** | Higher (~50ms) | Guaranteed | Slower user experience |
+| **ACK after memory write** | Lower (~10ms) | At-risk window | Data loss on crash |
+| **Hybrid (our choice)** | ~20ms | High | Acceptable risk window |
+
+**Decision:** Write to operation log (persistent), then ACK. Operation log uses async replication with fsync batching.
+
+### 8.4 Storage: Full Snapshots vs Deltas
+
+| Approach | Storage Cost | Load Time | Complexity |
+|---|---|---|---|
+| **Full snapshots only** | High (duplicated content) | Fast | Low |
+| **Deltas only** | Low | Slow (replay all ops) | Medium |
+| **Hybrid (our choice)** | Medium | Fast | Higher |
+
+**Decision:** Periodic snapshots (every 100 operations or 5 minutes) + delta operations between snapshots.
+
+### 8.5 Security vs Performance
+
+| Check | Cost | Where to Enforce |
+|---|---|---|
+| **Permission check per operation** | ~1ms | Collaboration Service |
+| **Rate limiting per user** | ~0.1ms | Real-time Gateway |
+| **Input validation/sanitization** | ~0.5ms | Gateway + Service |
+
+**Decision:** Check permissions on WebSocket connection establishment and periodically (every 60s), not per operation. Trust established connections.
+
+### 8.6 Scaling Strategy: Vertical vs Horizontal
+
+| Component | Strategy | Rationale |
+|---|---|---|
+| **WebSocket Gateways** | Horizontal | Stateless connection handling |
+| **Sequencer** | Vertical per document | Single-writer simplifies OT |
+| **Operation Log** | Horizontal (partition by doc) | Each document is independent |
+| **Presence Service** | Horizontal | Stateless with Redis |
+
+### 8.7 Cost Optimization Tradeoffs
+
+| Optimization | Benefit | Risk |
+|---|---|---|
+| **Compress operations** | 50% bandwidth reduction | CPU overhead, latency |
+| **Batch presence updates** | Fewer messages | Cursor appears less smooth |
+| **Shorter snapshot intervals** | Faster document load | Higher storage cost |
+| **Aggressive TTL on revisions** | Lower storage cost | Users lose history |
+
+---
+
+## 9. Failure Modes & Recovery
+
+### 9.1 Failure Scenarios
+
+| Failure | Impact | Mitigation |
+|---|---|---|
+| **Sequencer crash** | Document edits queued | Standby sequencer with operation log replay |
+| **WebSocket Gateway crash** | Users disconnected | Client auto-reconnect to different gateway |
+| **Message Queue lag** | Delayed broadcasts | Per-user message buffering, catch-up on reconnect |
+| **Operation Log corruption** | Data loss risk | Multi-AZ replication, periodic verification |
+| **Redis (presence) failure** | Cursors disappear | Fail-open (editing continues, presence degrades) |
+
+### 9.2 Recovery Procedures
+
+```
+Sequencer Failover:
+1. Detect failure (heartbeat timeout: 5s)
+2. Standby acquires document lock (distributed lock)
+3. Replay operation log from last checkpoint
+4. Resume accepting new operations
+5. Notify gateways of new sequencer endpoint
+
+Total failover time target: < 10 seconds
+```
+
+---
+
+## 10. Interview Discussion Points
+
+When presenting this design, highlight:
+
+1. **"I chose OT over CRDT because..."** — Shows you understand both approaches and made a reasoned decision based on architecture and requirements.
+
+2. **Sequencer design** — The single-writer pattern for per-document consistency is a key architectural decision that simplifies OT complexity.
+
+3. **Client-side buffering** — Optimistic updates with operation queuing shows understanding of perceived latency vs actual consistency.
+
+4. **Presence as ephemeral state** — Treating cursors differently from document content shows separation of concerns thinking.
+
+5. **Hot document handling** — Acknowledging the 100-user scenario and having strategies (batching, throttling) shows scalability awareness.
+
+6. **Failure modes** — Discussing fail-open for presence vs durability guarantees for operations shows you think about degraded states.
+
+---
+
+## 11. Extensions for v2
+
+| Feature | Key Challenges |
+|---|---|
+| **Offline editing** | CRDT migration or conflict UI on reconnect |
+| **Rich content (images, tables)** | Complex OT for nested structures |
+| **Comments & suggestions** | Anchoring to text that may change |
+| **Real-time collaboration analytics** | Who edited what, activity heatmaps |
+| **Cross-document linking** | Maintaining link integrity across edits |
+
+---
+
+## References
+
+- [System Design School - Google Docs](https://systemdesignschool.io/problems/google-doc/solution)
+- Google's Operational Transformation (OT) research
+- CRDTs: Conflict-free Replicated Data Types
+- Etherpad OT implementation

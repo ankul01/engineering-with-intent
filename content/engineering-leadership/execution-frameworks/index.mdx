@@ -1,0 +1,380 @@
+---
+title: "Execution Frameworks"
+description: "Delivery excellence, sprint planning, risk management, and unblocking teams."
+---
+
+# Execution Frameworks
+
+Great engineering leaders deliver results consistently. This guide covers frameworks for driving execution, managing risks, and unblocking teams.
+
+## Delivery Excellence
+
+### The Execution Loop
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Execution Loop                            │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│         ┌─────────┐                                         │
+│         │  Plan   │                                         │
+│         └────┬────┘                                         │
+│              │                                               │
+│    ┌─────────▼─────────┐                                    │
+│    │      Execute      │                                    │
+│    └─────────┬─────────┘                                    │
+│              │                                               │
+│         ┌────▼────┐                                         │
+│         │ Monitor │                                         │
+│         └────┬────┘                                         │
+│              │                                               │
+│         ┌────▼────┐                                         │
+│         │  Adapt  │───────────┐                             │
+│         └─────────┘           │                             │
+│              ▲                │                             │
+│              └────────────────┘                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### DORA Metrics
+
+| Metric | Elite | High | Medium | Low |
+|--------|-------|------|--------|-----|
+| **Deployment Frequency** | On-demand | Weekly | Monthly | Yearly |
+| **Lead Time** | < 1 hour | 1 day-1 week | 1 week-1 month | > 1 month |
+| **Change Failure Rate** | 0-15% | 16-30% | 16-30% | > 30% |
+| **Recovery Time** | < 1 hour | < 1 day | 1 day-1 week | > 1 month |
+
+### Delivery Health Indicators
+
+```
+🟢 Green:
+├── On track for commitments
+├── No significant blockers
+├── Team morale good
+└── Quality maintained
+
+🟡 Yellow:
+├── Some risk to commitments
+├── Blockers being addressed
+├── Team stretched but managing
+└── Minor quality issues
+
+🔴 Red:
+├── Will miss commitments
+├── Critical blockers
+├── Team overwhelmed
+└── Quality suffering
+```
+
+---
+
+## Sprint Planning
+
+### Planning Process
+
+```
+Pre-Planning:
+├── Backlog groomed and prioritized
+├── Stories sized
+├── Dependencies identified
+└── Capacity calculated
+
+Planning Meeting:
+├── Review sprint goal
+├── Pull work from backlog
+├── Break into tasks
+├── Identify risks
+└── Commit as a team
+
+Definition of Ready:
+├── Clear acceptance criteria
+├── Dependencies resolved
+├── Design complete
+├── Sized by team
+└── No blockers
+```
+
+### Capacity Planning
+
+```
+Team Capacity Calculation:
+┌─────────────────────────────────────────────────────────────┐
+│  Engineer    │ Days Available │ Focus Factor │ Capacity     │
+├─────────────────────────────────────────────────────────────┤
+│  Alice       │ 10            │ 0.8          │ 8 days       │
+│  Bob         │ 8 (PTO)       │ 0.8          │ 6.4 days     │
+│  Carol       │ 10            │ 0.6 (on-call)│ 6 days       │
+│  Dave        │ 10            │ 0.8          │ 8 days       │
+├─────────────────────────────────────────────────────────────┤
+│  Total                                       │ 28.4 days    │
+└─────────────────────────────────────────────────────────────┘
+
+Focus Factor accounts for:
+- Meetings
+- Support/bugs
+- Code reviews
+- On-call duties
+```
+
+### Estimation Techniques
+
+| Technique | When to Use | How |
+|-----------|-------------|-----|
+| **Story Points** | Relative sizing | Fibonacci scale, compare to reference |
+| **T-Shirt Sizes** | Quick rough sizing | S, M, L, XL |
+| **Time-based** | Well-understood work | Hours or days |
+| **No Estimates** | Highly uncertain | Small slices, just-in-time planning |
+
+---
+
+## Risk Management
+
+### Risk Identification
+
+```
+Common Project Risks:
+┌─────────────────────────────────────────────────────────────┐
+│  Category          │ Examples                               │
+├─────────────────────────────────────────────────────────────┤
+│  Technical         │ Unknown tech, performance concerns     │
+│  Dependencies      │ Waiting on other teams, third parties  │
+│  Resource          │ Key person risk, capacity              │
+│  Requirements      │ Unclear scope, changing needs          │
+│  External          │ Vendor reliability, market changes     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Risk Matrix
+
+```
+            Low Impact    Medium Impact    High Impact
+           ┌─────────────┬────────────────┬─────────────┐
+High       │   Accept/   │    Active      │   Critical  │
+Probability│   Monitor   │   Mitigation   │  Attention  │
+           ├─────────────┼────────────────┼─────────────┤
+Medium     │   Accept    │    Monitor/    │   Active    │
+Probability│             │   Plan         │  Mitigation │
+           ├─────────────┼────────────────┼─────────────┤
+Low        │   Accept    │    Accept/     │   Monitor/  │
+Probability│             │   Monitor      │    Plan     │
+           └─────────────┴────────────────┴─────────────┘
+```
+
+### Risk Mitigation Strategies
+
+| Strategy | When to Use | Example |
+|----------|-------------|---------|
+| **Avoid** | Can eliminate cause | Change approach |
+| **Mitigate** | Can reduce probability/impact | Add buffers, prototypes |
+| **Transfer** | Someone else better positioned | Insurance, vendor contract |
+| **Accept** | Low impact or probability | Monitor and continue |
+
+### Pre-mortem
+
+```
+Before project starts, ask:
+"It's 3 months from now and this project failed. What happened?"
+
+Team brainstorms:
+├── Technical issues we didn't anticipate
+├── Dependencies that fell through
+├── Scope that grew
+├── Team issues
+└── External factors
+
+Then address top risks proactively.
+```
+
+---
+
+## Unblocking Teams
+
+### Common Blockers
+
+| Category | Examples | Who Can Help |
+|----------|----------|--------------|
+| **Technical** | Architecture unclear, don't know how to proceed | Tech lead, senior engineer |
+| **Dependencies** | Waiting on another team | Manager escalation |
+| **Requirements** | Unclear what to build | PM clarification |
+| **Access** | Permissions, environments | Ops, IT |
+| **Personal** | Stuck, overwhelmed | Manager coaching |
+
+### Unblocking Framework
+
+```
+1. Identify the blocker
+   "What specifically is stopping progress?"
+
+2. Assess urgency
+   "When does this become critical?"
+
+3. Find the owner
+   "Who can resolve this?"
+
+4. Take action
+   ├── Self-serve if possible
+   ├── Escalate if needed
+   ├── Follow up relentlessly
+   └── Remove the blocker
+
+5. Prevent recurrence
+   "How do we avoid this next time?"
+```
+
+### Escalation Guidelines
+
+```
+When to escalate:
+├── Blocker persists > 1-2 days
+├── No response from dependency owner
+├── Cross-team priority conflict
+├── Decision needed above your level
+└── Risk to commitments
+
+How to escalate:
+├── State the problem clearly
+├── Share what you've already tried
+├── Propose a solution
+├── Ask for specific help
+└── Follow up
+```
+
+---
+
+## Progress Tracking
+
+### Standup Structure
+
+```
+Classic (for small teams):
+├── What did I do yesterday?
+├── What will I do today?
+└── Any blockers?
+
+Walking the Board (recommended):
+├── Start from "Done" column
+├── Move right to left
+├── Focus on moving work to done
+└── Identify blockers per item
+```
+
+### Burndown/Burnup Charts
+
+```
+Burndown Chart:
+Story Points
+     │
+  30 │●
+     │  ●
+  20 │    ●     Ideal
+     │      ●─────────
+  10 │        ●      ●● Actual
+     │                 ●●
+   0 │───────────────────●
+     Day 1              Day 10
+
+Red flag: Flat line = blocked or scope creep
+```
+
+### Weekly Status
+
+```
+Format:
+┌─────────────────────────────────────────────────────────────┐
+│  Status: 🟢 Green / 🟡 Yellow / 🔴 Red                       │
+│                                                              │
+│  Progress:                                                   │
+│  - Completed [X, Y, Z]                                      │
+│  - In progress [A, B]                                        │
+│                                                              │
+│  Blockers/Risks:                                             │
+│  - [Blocker, owner, action]                                 │
+│                                                              │
+│  Next Week:                                                  │
+│  - [Planned work]                                           │
+│                                                              │
+│  Help Needed:                                                │
+│  - [Specific asks]                                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Handling Setbacks
+
+### When Projects Go Off Track
+
+```
+1. Acknowledge early
+   Don't hide problems hoping they'll resolve
+
+2. Assess the situation
+   - What's the actual status?
+   - What caused the deviation?
+   - What are the options?
+
+3. Communicate
+   - Proactive, not reactive
+   - To stakeholders before they ask
+   - With options, not just problems
+
+4. Replan
+   - Adjust scope, timeline, or resources
+   - Get alignment on new plan
+
+5. Execute recovery
+   - Daily check-ins
+   - Remove obstacles aggressively
+   - Celebrate small wins
+```
+
+### Scope Management
+
+| Approach | When to Use |
+|----------|-------------|
+| **Cut scope** | Timeline fixed, priority clear |
+| **Extend timeline** | Scope is fixed, deadline flexible |
+| **Add resources** | Critical delivery, people available |
+| **Increase efficiency** | Waste/blockers can be eliminated |
+| **Accept quality tradeoff** | Conscious decision, plan to fix later |
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How do you ensure your team delivers on time?"**
+   - Clear planning and estimation
+   - Regular progress tracking
+   - Proactive risk management
+   - Aggressive blocker removal
+   - Early communication of issues
+
+2. **"Tell me about a project that went off track"**
+   - STAR format
+   - Show early recognition
+   - Proactive communication
+   - Recovery actions taken
+   - Lessons learned
+
+3. **"How do you handle a blocked team member?"**
+   - Identify the specific blocker
+   - Assess urgency
+   - Take ownership to resolve
+   - Escalate if needed
+   - Prevent recurrence
+
+### Execution Checklist
+
+- [ ] Sprint goals clear?
+- [ ] Capacity realistically planned?
+- [ ] Risks identified and mitigated?
+- [ ] Progress visible to team?
+- [ ] Blockers being addressed?
+- [ ] Stakeholders updated?
+- [ ] Quality maintained?
+- [ ] Team sustainable?

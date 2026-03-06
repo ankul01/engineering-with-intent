@@ -1,0 +1,552 @@
+---
+title: "Scalability Patterns"
+description: "Horizontal scaling, load balancing, sharding, CQRS, and auto-scaling strategies for system design."
+---
+
+# Scalability Patterns
+
+Scalability is the ability of a system to handle increased load by adding resources. This guide covers patterns and strategies for building systems that scale.
+
+## Scaling Fundamentals
+
+### Vertical vs Horizontal Scaling
+
+```
+Vertical Scaling (Scale Up):
+┌─────────────────┐        ┌─────────────────────────┐
+│    Server       │   ──▶  │      Bigger Server      │
+│  4 CPU, 16GB    │        │    32 CPU, 256GB        │
+└─────────────────┘        └─────────────────────────┘
+    Add more power to existing machine
+
+Horizontal Scaling (Scale Out):
+┌─────────────────┐        ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐
+│    Server       │   ──▶  │Server│ │Server│ │Server│ │Server│
+│  4 CPU, 16GB    │        └──────┘ └──────┘ └──────┘ └──────┘
+└─────────────────┘            Add more machines
+```
+
+| Aspect | Vertical | Horizontal |
+|--------|----------|------------|
+| Complexity | Simple | Complex (distributed) |
+| Ceiling | Hardware limits | Near unlimited |
+| Downtime | Usually required | Zero downtime possible |
+| Cost | Expensive at scale | Cost-effective |
+| Failure | Single point | Fault tolerant |
+
+### When to Scale
+
+| Metric | Warning Signs |
+|--------|---------------|
+| **CPU** | Sustained above 70-80% |
+| **Memory** | Above 80%, swap usage |
+| **Disk I/O** | High wait times |
+| **Network** | Saturation, dropped packets |
+| **Latency** | P99 exceeding SLOs |
+| **Queue depth** | Growing backlog |
+
+---
+
+## Load Balancing
+
+Distribute traffic across multiple servers to prevent any single server from becoming a bottleneck.
+
+### Architecture
+
+```
+                         ┌──────────────┐
+                         │    Client    │
+                         └──────┬───────┘
+                                │
+                         ┌──────▼───────┐
+                         │Load Balancer │
+                         └──────┬───────┘
+              ┌─────────────────┼─────────────────┐
+              │                 │                 │
+        ┌─────▼─────┐     ┌─────▼─────┐     ┌─────▼─────┐
+        │  Server 1 │     │  Server 2 │     │  Server 3 │
+        └───────────┘     └───────────┘     └───────────┘
+```
+
+### Load Balancing Algorithms
+
+#### Round Robin
+
+Requests distributed sequentially across servers.
+
+```
+Request 1 → Server 1
+Request 2 → Server 2
+Request 3 → Server 3
+Request 4 → Server 1  (cycle repeats)
+```
+
+**Best for**: Homogeneous servers, stateless requests
+
+#### Weighted Round Robin
+
+Servers with more capacity get more requests.
+
+```
+Server 1 (weight=5): Gets 5 requests
+Server 2 (weight=3): Gets 3 requests
+Server 3 (weight=2): Gets 2 requests
+```
+
+**Best for**: Heterogeneous server capacities
+
+#### Least Connections
+
+Route to server with fewest active connections.
+
+```
+Server 1: 10 connections ←
+Server 2: 25 connections
+Server 3: 15 connections
+New request → Server 1 (least loaded)
+```
+
+**Best for**: Long-lived connections, varying request times
+
+#### IP Hash
+
+Hash client IP to consistently route to same server.
+
+```python
+server_index = hash(client_ip) % num_servers
+```
+
+**Best for**: Session affinity without sticky sessions
+
+#### Least Response Time
+
+Route to server with fastest response + fewest connections.
+
+**Best for**: Performance-critical applications
+
+### Algorithm Comparison
+
+| Algorithm | Pros | Cons | Use Case |
+|-----------|------|------|----------|
+| Round Robin | Simple, fair | Ignores server load | Equal servers |
+| Weighted RR | Handles different capacities | Static weights | Mixed hardware |
+| Least Connections | Adapts to load | Connection tracking overhead | Variable workloads |
+| IP Hash | Consistent routing | Uneven if IPs clustered | Session affinity |
+| Least Response Time | Performance-aware | Latency measurement overhead | Low latency needs |
+
+### Layer 4 vs Layer 7 Load Balancing
+
+```
+Layer 4 (Transport):
+┌────────┐                      ┌────────┐
+│ Client │──TCP/UDP packets────▶│  LB    │──Forward packets──▶ Server
+└────────┘                      └────────┘
+    Routes based on IP + Port (fast, simple)
+
+Layer 7 (Application):
+┌────────┐                      ┌────────┐
+│ Client │──HTTP request───────▶│  LB    │──Route by content──▶ Server
+└────────┘                      └────────┘
+    Routes based on URL, headers, cookies (flexible)
+```
+
+| Layer | Inspects | Can Route By | Use Case |
+|-------|----------|--------------|----------|
+| L4 | TCP/UDP | IP, Port | Simple TCP load balancing |
+| L7 | HTTP/HTTPS | URL, Headers, Cookies | API routing, A/B testing |
+
+---
+
+## Database Sharding
+
+Partition data across multiple database instances to handle large datasets and high throughput.
+
+### Sharding Strategies
+
+#### Range-Based Sharding
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    User IDs                         │
+├─────────────────┬─────────────────┬─────────────────┤
+│   Shard 1       │    Shard 2      │    Shard 3      │
+│   1 - 1M        │   1M - 2M       │   2M - 3M       │
+└─────────────────┴─────────────────┴─────────────────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Range queries efficient | Hot spots (new users on latest shard) |
+| Easy to understand | Uneven distribution over time |
+
+#### Hash-Based Sharding
+
+```python
+shard_id = hash(user_id) % num_shards
+```
+
+```
+user_id=123  → hash(123) % 3 = 0 → Shard 0
+user_id=456  → hash(456) % 3 = 2 → Shard 2
+user_id=789  → hash(789) % 3 = 1 → Shard 1
+```
+
+| Pros | Cons |
+|------|------|
+| Even distribution | Range queries hit all shards |
+| No hot spots | Resharding is complex |
+
+#### Directory-Based Sharding
+
+Lookup table maps keys to shards.
+
+```
+┌─────────────────┐
+│ Lookup Service  │
+│ user_1 → Shard1 │
+│ user_2 → Shard3 │
+│ user_3 → Shard2 │
+└────────┬────────┘
+         │
+    ┌────┴────┐────────┐
+    ▼         ▼        ▼
+┌───────┐ ┌───────┐ ┌───────┐
+│Shard 1│ │Shard 2│ │Shard 3│
+└───────┘ └───────┘ └───────┘
+```
+
+| Pros | Cons |
+|------|------|
+| Flexible placement | Lookup service = SPOF |
+| Easy rebalancing | Additional latency |
+
+### Consistent Hashing
+
+Minimizes data movement when adding/removing shards.
+
+```
+Hash Ring (0 to 2^32):
+                    0
+                    │
+            ┌───────┼───────┐
+            │       │       │
+        Shard A   Shard B  Shard C
+            │       │       │
+            └───────┴───────┘
+
+Key hashed to position on ring, assigned to next clockwise shard.
+Adding Shard D: Only keys between C and D move.
+```
+
+| Pros | Cons |
+|------|------|
+| Minimal resharding | Complexity |
+| Virtual nodes for balance | Memory for ring |
+
+### Sharding Challenges
+
+| Challenge | Solution |
+|-----------|----------|
+| **Cross-shard queries** | Denormalize, scatter-gather, avoid if possible |
+| **Cross-shard transactions** | Saga pattern, eventual consistency |
+| **Resharding** | Consistent hashing, dual-write migration |
+| **Hot shards** | Better shard key, split hot shards |
+| **Shard key selection** | High cardinality, even distribution, query patterns |
+
+---
+
+## CQRS (Command Query Responsibility Segregation)
+
+Separate read and write models for different optimization.
+
+### Architecture
+
+```
+Traditional (Single Model):
+┌──────────┐     ┌───────────────┐     ┌────────┐
+│  Client  │────▶│  Application  │────▶│   DB   │
+└──────────┘     │  (Read+Write) │     └────────┘
+                 └───────────────┘
+
+CQRS (Separate Models):
+┌──────────┐     ┌───────────────┐     ┌──────────────┐
+│  Client  │────▶│ Command Side  │────▶│  Write DB    │
+│ (Write)  │     │ (Optimized)   │     │ (Normalized) │
+└──────────┘     └───────────────┘     └──────┬───────┘
+                                              │
+                                         Events/CDC
+                                              │
+┌──────────┐     ┌───────────────┐     ┌──────▼───────┐
+│  Client  │────▶│  Query Side   │────▶│   Read DB    │
+│  (Read)  │     │ (Optimized)   │     │(Denormalized)│
+└──────────┘     └───────────────┘     └──────────────┘
+```
+
+### Implementation Example
+
+```
+E-commerce Product Catalog:
+
+Write Model (PostgreSQL):
+┌──────────────────────────────────────────────┐
+│ products        │ categories    │ inventory  │
+│ - id            │ - id          │ - id       │
+│ - name          │ - name        │ - product_id│
+│ - category_id   │ - parent_id   │ - quantity │
+│ - price         │               │ - warehouse│
+└──────────────────────────────────────────────┘
+
+Read Model (Elasticsearch):
+┌──────────────────────────────────────────────┐
+│ product_search_index                         │
+│ - id, name, price                            │
+│ - category_name, category_path               │
+│ - total_inventory                            │
+│ - search_keywords, facets                    │
+└──────────────────────────────────────────────┘
+```
+
+### When to Use CQRS
+
+| Use When | Avoid When |
+|----------|------------|
+| Read/write patterns very different | Simple CRUD |
+| Need different scaling for reads vs writes | Small scale |
+| Complex queries on normalized data | Team unfamiliar |
+| Event sourcing architecture | Strong consistency required everywhere |
+
+### CQRS + Event Sourcing
+
+```
+┌──────────┐  Command  ┌─────────────┐  Event   ┌─────────────┐
+│  Client  │──────────▶│   Command   │─────────▶│   Event     │
+└──────────┘           │   Handler   │          │   Store     │
+                       └─────────────┘          └──────┬──────┘
+                                                       │
+                                              Event Published
+                                                       │
+                       ┌─────────────┐          ┌──────▼──────┐
+                       │   Query     │◀─────────│  Projector  │
+                       │   Handler   │          │ (Read Model)│
+                       └─────────────┘          └─────────────┘
+                              ▲
+                       ┌──────┴──────┐
+                       │   Client    │
+                       │   (Query)   │
+                       └─────────────┘
+```
+
+---
+
+## Auto-Scaling
+
+Automatically adjust resources based on demand.
+
+### Scaling Metrics
+
+| Metric | Scale Out When | Scale In When |
+|--------|----------------|---------------|
+| CPU | Above 70% | Below 30% |
+| Memory | Above 80% | Below 40% |
+| Request count | Above threshold | Below threshold |
+| Queue depth | Growing | Empty |
+| Custom | Business metric | Business metric |
+
+### Scaling Policies
+
+#### Target Tracking
+
+Maintain a target metric value.
+
+```yaml
+# AWS Auto Scaling example
+ScalingPolicy:
+  PolicyType: TargetTrackingScaling
+  TargetValue: 70.0          # Target CPU at 70%
+  PredefinedMetricType: ASGAverageCPUUtilization
+  ScaleOutCooldown: 300      # Wait 5 min before scaling out again
+  ScaleInCooldown: 300       # Wait 5 min before scaling in
+```
+
+#### Step Scaling
+
+Different actions for different thresholds.
+
+```
+CPU < 30%  → Remove 2 instances
+CPU 30-50% → Remove 1 instance
+CPU 50-70% → No action
+CPU 70-85% → Add 1 instance
+CPU > 85%  → Add 3 instances
+```
+
+#### Scheduled Scaling
+
+Scale based on predictable patterns.
+
+```
+Mon-Fri 9AM  → Scale to 10 instances
+Mon-Fri 6PM  → Scale to 5 instances
+Sat-Sun      → Scale to 3 instances
+```
+
+### Scaling Considerations
+
+| Consideration | Guidance |
+|---------------|----------|
+| **Cooldown** | Prevent thrashing with cooldown periods |
+| **Warm-up** | Allow time for instances to initialize |
+| **Min/Max** | Set bounds to control costs and ensure capacity |
+| **Health checks** | Remove unhealthy instances automatically |
+| **Stateless** | Design for instances to be ephemeral |
+| **Graceful shutdown** | Drain connections before termination |
+
+---
+
+## Microservices Scaling Patterns
+
+### Service Mesh
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Service Mesh                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐      │
+│  │  Service A  │  │  Service B  │  │  Service C  │      │
+│  │  ┌───────┐  │  │  ┌───────┐  │  │  ┌───────┐  │      │
+│  │  │ Proxy │  │  │  │ Proxy │  │  │  │ Proxy │  │      │
+│  │  └───┬───┘  │  │  └───┬───┘  │  │  └───┬───┘  │      │
+│  └──────┼──────┘  └──────┼──────┘  └──────┼──────┘      │
+│         └────────────────┴────────────────┘              │
+│                    Control Plane                         │
+│              (Istio, Linkerd, Consul)                    │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Provides**: Load balancing, retries, circuit breaking, observability
+
+### Bulkhead Pattern
+
+Isolate failures to prevent cascade.
+
+```
+┌─────────────────────────────────────────────────┐
+│                   Service                        │
+│  ┌─────────────┐  ┌─────────────┐               │
+│  │ Thread Pool │  │ Thread Pool │               │
+│  │  (API A)    │  │  (API B)    │               │
+│  │  10 threads │  │  10 threads │               │
+│  └─────────────┘  └─────────────┘               │
+│                                                  │
+│  If API A is slow, only its pool exhausted      │
+│  API B continues to work normally               │
+└─────────────────────────────────────────────────┘
+```
+
+### Circuit Breaker
+
+Fail fast when downstream is unhealthy.
+
+```
+States:
+┌────────┐   failures > threshold   ┌────────┐
+│ Closed │─────────────────────────▶│  Open  │
+│        │                          │        │
+│ Normal │                          │ Reject │
+│ flow   │                          │  all   │
+└────────┘                          └────┬───┘
+     ▲                                   │
+     │                              timeout
+     │                                   │
+     │          ┌──────────┐             │
+     │          │Half-Open │◀────────────┘
+     └──────────│          │
+      success   │ Test one │
+                │ request  │
+                └──────────┘
+```
+
+---
+
+## Data Replication Patterns
+
+### Primary-Replica
+
+```
+Writes:                    Reads:
+┌──────────┐              ┌──────────┐
+│  Client  │              │  Client  │
+└────┬─────┘              └────┬─────┘
+     │                         │
+     ▼                         ▼
+┌─────────┐              ┌───────────────────┐
+│ Primary │──replicate──▶│ Replica 1, 2, 3   │
+└─────────┘              └───────────────────┘
+```
+
+### Multi-Region
+
+```
+                    ┌─────────────┐
+                    │   Global    │
+                    │   Router    │
+                    └──────┬──────┘
+         ┌─────────────────┼─────────────────┐
+         │                 │                 │
+    ┌────▼────┐       ┌────▼────┐       ┌────▼────┐
+    │ US-East │       │ EU-West │       │ AP-South│
+    │ Primary │◀─────▶│ Primary │◀─────▶│ Primary │
+    └─────────┘       └─────────┘       └─────────┘
+         Multi-primary with conflict resolution
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you scale a read-heavy application?"**
+   - Read replicas
+   - Caching layer (Redis, CDN)
+   - CQRS with optimized read model
+
+2. **"How would you scale a write-heavy application?"**
+   - Sharding by write key
+   - Write-behind caching
+   - Async processing with queues
+
+3. **"Your service is getting 10x traffic tomorrow. What do you do?"**
+   - Verify auto-scaling policies
+   - Pre-scale critical services
+   - Enable CDN caching
+   - Review rate limits
+   - Alert on-call team
+
+4. **"How do you choose a sharding key?"**
+   - High cardinality (many unique values)
+   - Even distribution
+   - Matches query patterns
+   - Avoids cross-shard queries
+
+### Numbers to Know
+
+| Component | Typical Scale |
+|-----------|---------------|
+| Single PostgreSQL | 10K-50K QPS |
+| Single Redis | 100K+ ops/sec |
+| Single Kafka partition | 10-50 MB/sec |
+| Load balancer (L4) | 1M+ connections |
+| Load balancer (L7) | 100K+ req/sec |
+| Typical web server | 1K-10K req/sec |
+
+### Design Checklist
+
+- [ ] Identified bottleneck? (CPU, memory, I/O, network)
+- [ ] Stateless services? (for horizontal scaling)
+- [ ] Load balancing strategy?
+- [ ] Database scaling approach? (replicas, sharding)
+- [ ] Caching strategy?
+- [ ] Auto-scaling policies?
+- [ ] Graceful degradation?
+- [ ] Monitoring and alerting?
+- [ ] Capacity planning?

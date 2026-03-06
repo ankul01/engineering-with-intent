@@ -1,0 +1,37 @@
+{
+  "name": "leadership-learning",
+  "version": "1.0.0",
+  "description": "Interview preparation for senior engineering and engineering leadership roles.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "postbuild": "pagefind --site out --output-path out/_pagefind",
+    "start": "next start"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ankul01/leadership-learning.git"
+  },
+  "keywords": [
+    "interview",
+    "system-design",
+    "leadership",
+    "engineering"
+  ],
+  "author": "Ankul Choudhary",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ankul01/leadership-learning/issues"
+  },
+  "homepage": "https://ankul01.github.io/leadership-learning",
+  "dependencies": {
+    "next": "^16.1.6",
+    "nextra": "^4.6.1",
+    "nextra-theme-docs": "^4.6.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "pagefind": "^1.4.0"
+  }
+}

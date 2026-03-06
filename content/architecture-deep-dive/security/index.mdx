@@ -1,0 +1,489 @@
+---
+title: "Security"
+description: "Authentication, authorization, OAuth, JWT, Zero Trust, and security architecture patterns."
+---
+
+# Security
+
+Security is a critical concern for every system. This guide covers authentication, authorization, encryption, and modern security architectures.
+
+## Authentication vs Authorization
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Security Flow                         │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────────┐    ┌───────────────────┐              │
+│  │  Authentication  │───▶│   Authorization   │              │
+│  │   "Who are you?" │    │  "What can you do?"│              │
+│  └──────────────────┘    └───────────────────┘              │
+│         │                        │                           │
+│         ▼                        ▼                           │
+│  Username/Password         Role-Based Access                 │
+│  OAuth/OIDC               Permission Checks                  │
+│  Biometrics               Policy Evaluation                  │
+│  MFA                      Resource Access                    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## OAuth 2.0
+
+Industry-standard protocol for authorization.
+
+### OAuth Roles
+
+| Role | Description |
+|------|-------------|
+| **Resource Owner** | User who owns the data |
+| **Client** | Application requesting access |
+| **Authorization Server** | Issues tokens (Google, Auth0) |
+| **Resource Server** | API holding protected resources |
+
+### Authorization Code Flow
+
+```
+┌──────────┐                              ┌───────────────────┐
+│   User   │                              │  Authorization    │
+│ (Browser)│                              │     Server        │
+└────┬─────┘                              └─────────┬─────────┘
+     │                                              │
+     │  1. Click "Login with Google"                │
+     │─────────────────────────────────────────────▶│
+     │                                              │
+     │  2. Redirect to authorization URL            │
+     │◀─────────────────────────────────────────────│
+     │                                              │
+     │  3. User authenticates & consents            │
+     │─────────────────────────────────────────────▶│
+     │                                              │
+     │  4. Redirect with authorization code         │
+     │◀─────────────────────────────────────────────│
+     │                                              │
+     │         ┌──────────────┐                     │
+     │         │    Client    │                     │
+     │         │   (Backend)  │                     │
+     │         └──────┬───────┘                     │
+     │                │                             │
+     │                │ 5. Exchange code for tokens │
+     │                │────────────────────────────▶│
+     │                │                             │
+     │                │ 6. Access + Refresh tokens  │
+     │                │◀────────────────────────────│
+     │                │                             │
+     │                │ 7. Access protected API     │
+     │                │────────────────────────────▶│ Resource
+     │                │                             │ Server
+```
+
+### OAuth Grant Types
+
+| Grant Type | Use Case | Security |
+|------------|----------|----------|
+| **Authorization Code** | Server-side apps | Most secure |
+| **Authorization Code + PKCE** | Mobile/SPA apps | Secure for public clients |
+| **Client Credentials** | Machine-to-machine | No user involved |
+| **Refresh Token** | Get new access token | Long-lived sessions |
+
+### OAuth Best Practices
+
+- **Always use HTTPS**
+- **Use PKCE** for public clients (mobile, SPA)
+- **Short-lived access tokens** (15 min - 1 hour)
+- **Rotate refresh tokens** on use
+- **Validate redirect URIs** strictly
+- **Use state parameter** to prevent CSRF
+
+---
+
+## OpenID Connect (OIDC)
+
+Authentication layer on top of OAuth 2.0.
+
+```
+OAuth 2.0: Authorization (access to resources)
+    +
+OpenID Connect: Authentication (user identity)
+    =
+Complete auth solution
+```
+
+### OIDC Additions
+
+| Component | Purpose |
+|-----------|---------|
+| **ID Token** | JWT containing user identity |
+| **UserInfo Endpoint** | Get user profile |
+| **Standard Scopes** | `openid`, `profile`, `email` |
+| **Standard Claims** | `sub`, `name`, `email`, `picture` |
+
+### ID Token Structure
+
+```json
+{
+  "iss": "https://auth.example.com",
+  "sub": "user123",
+  "aud": "client_app_id",
+  "exp": 1699999999,
+  "iat": 1699996399,
+  "name": "John Doe",
+  "email": "john@example.com"
+}
+```
+
+---
+
+## JWT (JSON Web Tokens)
+
+Compact, URL-safe tokens for transmitting claims.
+
+### JWT Structure
+
+```
+Header.Payload.Signature
+
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
+SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+
+┌─────────────────┐
+│     Header      │  {"alg": "HS256", "typ": "JWT"}
+├─────────────────┤
+│     Payload     │  {"sub": "123", "name": "John", "exp": 1699999999}
+├─────────────────┤
+│    Signature    │  HMACSHA256(base64(header) + "." + base64(payload), secret)
+└─────────────────┘
+```
+
+### JWT Validation
+
+```python
+def validate_jwt(token, secret):
+    header, payload, signature = token.split('.')
+    
+    # 1. Verify signature
+    expected_sig = hmac_sha256(f"{header}.{payload}", secret)
+    if signature != expected_sig:
+        raise InvalidSignature()
+    
+    # 2. Decode payload
+    claims = base64_decode(payload)
+    
+    # 3. Validate claims
+    if claims['exp'] < current_time():
+        raise TokenExpired()
+    
+    if claims['iss'] != expected_issuer:
+        raise InvalidIssuer()
+    
+    if claims['aud'] != our_client_id:
+        raise InvalidAudience()
+    
+    return claims
+```
+
+### JWT Best Practices
+
+| Practice | Recommendation |
+|----------|----------------|
+| **Algorithm** | RS256 (asymmetric) for distributed systems |
+| **Expiration** | Short-lived (15 min for access tokens) |
+| **Storage** | HttpOnly cookies (not localStorage) |
+| **Payload** | Minimal claims, no sensitive data |
+| **Validation** | Always verify signature, exp, iss, aud |
+
+### JWT vs Sessions
+
+| Aspect | JWT | Sessions |
+|--------|-----|----------|
+| Storage | Client-side | Server-side |
+| Scalability | Stateless, scales easily | Requires session store |
+| Revocation | Difficult (need blocklist) | Easy (delete session) |
+| Size | Can grow large | Just session ID |
+| Use Case | APIs, microservices | Traditional web apps |
+
+---
+
+## Zero Trust Architecture
+
+"Never trust, always verify" - every request must be authenticated and authorized.
+
+### Traditional vs Zero Trust
+
+```
+Traditional (Perimeter-based):
+┌─────────────────────────────────────────┐
+│            Corporate Network            │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  │
+│  │ Service │──│ Service │──│ Service │  │  ← Trust inside
+│  └─────────┘  └─────────┘  └─────────┘  │
+└─────────────────────────────────────────┘
+        │
+    Firewall  ← Trust boundary
+        │
+    Internet (untrusted)
+
+Zero Trust:
+┌─────────────────────────────────────────┐
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐  │
+│  │ Service │─?─│ Service │─?─│ Service │ │  ← Verify everything
+│  │ + Auth  │  │ + Auth  │  │ + Auth  │  │
+│  └─────────┘  └─────────┘  └─────────┘  │
+└─────────────────────────────────────────┘
+    Every request authenticated & authorized
+```
+
+### Zero Trust Principles
+
+| Principle | Implementation |
+|-----------|---------------|
+| **Verify explicitly** | Authenticate every request |
+| **Least privilege** | Minimal permissions needed |
+| **Assume breach** | Limit blast radius |
+| **Micro-segmentation** | Network isolation per service |
+| **Continuous validation** | Re-verify throughout session |
+
+### Zero Trust Components
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Zero Trust Architecture                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐     │
+│  │   Identity   │   │   Device     │   │   Network    │     │
+│  │   Provider   │   │   Trust      │   │ Micro-seg    │     │
+│  └──────────────┘   └──────────────┘   └──────────────┘     │
+│         │                  │                  │              │
+│         └──────────────────┼──────────────────┘              │
+│                            │                                 │
+│                     ┌──────▼──────┐                          │
+│                     │   Policy    │                          │
+│                     │   Engine    │                          │
+│                     └──────┬──────┘                          │
+│                            │                                 │
+│                     ┌──────▼──────┐                          │
+│                     │   Access    │                          │
+│                     │  Decision   │                          │
+│                     └─────────────┘                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Encryption
+
+### Encryption at Rest
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Data at Rest                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Application Data                                            │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌─────────────┐                                             │
+│  │   DEK       │  Data Encryption Key                        │
+│  │ (per-data)  │  Encrypts actual data                       │
+│  └──────┬──────┘                                             │
+│         │                                                    │
+│  ┌──────▼──────┐                                             │
+│  │   KEK       │  Key Encryption Key                         │
+│  │ (per-user)  │  Encrypts DEK                               │
+│  └──────┬──────┘                                             │
+│         │                                                    │
+│  ┌──────▼──────┐                                             │
+│  │ Master Key  │  Stored in HSM/KMS                          │
+│  │   (KMS)     │  (AWS KMS, HashiCorp Vault)                 │
+│  └─────────────┘                                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Encryption in Transit
+
+| Protocol | Use Case |
+|----------|----------|
+| **TLS 1.3** | HTTPS, API calls |
+| **mTLS** | Service-to-service |
+| **SSH** | Server access |
+| **VPN/WireGuard** | Network tunneling |
+
+### Symmetric vs Asymmetric
+
+| Type | Algorithms | Use Case |
+|------|------------|----------|
+| **Symmetric** | AES-256-GCM | Bulk data encryption |
+| **Asymmetric** | RSA, ECDSA | Key exchange, signatures |
+| **Hybrid** | Both | TLS (asymmetric for key exchange, symmetric for data) |
+
+---
+
+## API Security
+
+### API Authentication Methods
+
+| Method | Security | Use Case |
+|--------|----------|----------|
+| **API Key** | Low | Simple integrations |
+| **OAuth 2.0** | High | User-authorized access |
+| **mTLS** | Very High | Service-to-service |
+| **HMAC Signatures** | High | Webhook verification |
+
+### Rate Limiting
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Rate Limiting                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Token Bucket:                                               │
+│  ┌─────────────────────────────────────┐                    │
+│  │ Bucket: [●●●●●○○○○○]               │                    │
+│  │         ▲                           │                    │
+│  │    Tokens added at fixed rate       │                    │
+│  │    Request consumes 1 token         │                    │
+│  │    Empty bucket = rate limited      │                    │
+│  └─────────────────────────────────────┘                    │
+│                                                              │
+│  Limits by:                                                  │
+│  - IP address                                                │
+│  - User ID                                                   │
+│  - API key                                                   │
+│  - Endpoint                                                  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Input Validation
+
+```python
+# Always validate and sanitize
+def create_user(request):
+    # 1. Schema validation
+    validate_schema(request.body, UserSchema)
+    
+    # 2. Type checking
+    email = str(request.body.get('email', ''))
+    
+    # 3. Format validation
+    if not is_valid_email(email):
+        raise ValidationError("Invalid email")
+    
+    # 4. Business rules
+    if User.exists(email):
+        raise ValidationError("Email already registered")
+    
+    # 5. Sanitize before storage
+    name = sanitize_html(request.body.get('name'))
+```
+
+---
+
+## OWASP Top 10
+
+### Critical Vulnerabilities
+
+| Rank | Vulnerability | Prevention |
+|------|--------------|------------|
+| 1 | **Broken Access Control** | Enforce authorization on every request |
+| 2 | **Cryptographic Failures** | Use strong encryption, proper key management |
+| 3 | **Injection** | Parameterized queries, input validation |
+| 4 | **Insecure Design** | Threat modeling, secure patterns |
+| 5 | **Security Misconfiguration** | Hardened defaults, security headers |
+| 6 | **Vulnerable Components** | Regular updates, dependency scanning |
+| 7 | **Auth Failures** | MFA, strong passwords, secure sessions |
+| 8 | **Data Integrity Failures** | Verify signatures, validate updates |
+| 9 | **Logging Failures** | Comprehensive logging, monitoring |
+| 10 | **SSRF** | Validate URLs, allowlist destinations |
+
+### SQL Injection Prevention
+
+```java
+// ❌ Vulnerable
+String query = "SELECT * FROM users WHERE id = " + userId;
+
+// ✅ Safe - Parameterized query
+PreparedStatement stmt = conn.prepareStatement(
+    "SELECT * FROM users WHERE id = ?"
+);
+stmt.setString(1, userId);
+```
+
+### XSS Prevention
+
+```javascript
+// ❌ Vulnerable
+element.innerHTML = userInput;
+
+// ✅ Safe - Text content
+element.textContent = userInput;
+
+// ✅ Safe - Sanitize if HTML needed
+element.innerHTML = DOMPurify.sanitize(userInput);
+```
+
+---
+
+## Security Headers
+
+```http
+# Prevent XSS
+Content-Security-Policy: default-src 'self'; script-src 'self'
+
+# Prevent clickjacking
+X-Frame-Options: DENY
+
+# Force HTTPS
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+# Prevent MIME sniffing
+X-Content-Type-Options: nosniff
+
+# Control referrer
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+---
+
+## Interview Quick Reference
+
+### Common Questions
+
+1. **"How would you secure a REST API?"**
+   - OAuth 2.0 / JWT authentication
+   - HTTPS everywhere
+   - Rate limiting
+   - Input validation
+   - Security headers
+   - Logging and monitoring
+
+2. **"Explain OAuth 2.0 Authorization Code flow"**
+   - User clicks login
+   - Redirect to auth server
+   - User authenticates
+   - Auth code returned
+   - Backend exchanges code for tokens
+   - Access protected resources
+
+3. **"JWT vs Sessions - when to use which?"**
+   - JWT: APIs, microservices, stateless needs
+   - Sessions: Traditional web apps, easy revocation needed
+
+### Security Checklist
+
+- [ ] Authentication implemented? (OAuth, OIDC)
+- [ ] Authorization on every endpoint?
+- [ ] Input validation and sanitization?
+- [ ] Encryption at rest and in transit?
+- [ ] Secure headers configured?
+- [ ] Rate limiting in place?
+- [ ] Logging and monitoring?
+- [ ] Dependencies regularly updated?
+- [ ] Secrets management? (not in code)
+- [ ] Security testing? (SAST, DAST, pen testing)
