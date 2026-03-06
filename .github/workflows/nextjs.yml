@@ -3,7 +3,7 @@ name: Deploy Next.js site to Pages
 on:
   push:
     branches:
-      - gh-pages
+      - feature/cross-site-nav
   workflow_dispatch:
 
 permissions:
