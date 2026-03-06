@@ -28,7 +28,7 @@ export default function CrossSiteNav() {
           Home
         </a>
         <a 
-          href="https://ankul01.github.io/leadership-learning/" 
+          href="https://ankul01.github.io/engineering-with-intent/" 
           style={{ color: '#111827', fontWeight: 500, textDecoration: 'none' }}
         >
           Engineering with Intent
