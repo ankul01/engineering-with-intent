@@ -7,7 +7,7 @@ const withNextra = nextra({
 
 export default withNextra({
   output: 'export',
-  basePath: '/engineering-with-intent',
+  basePath: '/leadership-learning',
   images: {
     unoptimized: true
   },
