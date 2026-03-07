@@ -23,7 +23,7 @@ const navbar = (
 const footer = (
   <Footer>
     <span>
-      MIT {new Date().getFullYear()} © Ankul Choudhary. Architecture decisions and operating practices that hold up in production.
+      © {new Date().getFullYear()} Ankul Choudhary. Architecture decisions and operating practices that hold up in production.
     </span>
   </Footer>
 )
