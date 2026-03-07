@@ -47,6 +47,7 @@ export default async function RootLayout({ children }) {
           toc={{ backToTop: true }}
           editLink={null}
           feedback={{ content: null }}
+          navigation={false}
         >
           {children}
         </Layout>
