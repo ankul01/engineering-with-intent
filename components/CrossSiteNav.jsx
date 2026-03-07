@@ -15,20 +15,20 @@ export default function CrossSiteNav() {
         alignItems: 'center'
       }}>
         <a 
-          href="https://ankul01.github.io/profile/" 
+          href="https://ankul.co.in" 
           style={{ color: '#4b5563', textDecoration: 'none' }}
         >
           ← Home
         </a>
         <span style={{ color: '#d1d5db' }}>|</span>
         <a 
-          href="https://ankul01.github.io/profile/" 
+          href="https://ankul.co.in" 
           style={{ color: '#4b5563', textDecoration: 'none' }}
         >
           Home
         </a>
         <a 
-          href="https://ankul01.github.io/engineering-with-intent/" 
+          href="https://engineering.ankul.co.in" 
           style={{ color: '#111827', fontWeight: 500, textDecoration: 'none' }}
         >
           Engineering with Intent
