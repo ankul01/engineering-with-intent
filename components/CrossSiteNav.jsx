@@ -18,13 +18,6 @@ export default function CrossSiteNav() {
           href="https://ankul.co.in" 
           style={{ color: '#4b5563', textDecoration: 'none' }}
         >
-          ← Home
-        </a>
-        <span style={{ color: '#d1d5db' }}>|</span>
-        <a 
-          href="https://ankul.co.in" 
-          style={{ color: '#4b5563', textDecoration: 'none' }}
-        >
           Home
         </a>
         <a 
